@@ -44,7 +44,8 @@ Container image
 */}}
 {{- define "seafile.image" -}}
 {{- $tag := .Values.seafile.image.tag | default .Chart.AppVersion -}}
-{{- printf "%s:%s" .Values.seafile.image.repository $tag }}
+{{- $repo := .Values.seafile.image.repository | default (printf "seafileltd/seafile-%s-mc" .Values.seafile.edition) -}}
+{{- printf "%s:%s" $repo $tag }}
 {{- end }}
 
 {{/*

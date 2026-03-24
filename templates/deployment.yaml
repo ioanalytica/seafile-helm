@@ -29,15 +29,39 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if and .Values.seafile.initMode .Values.seafile.persistence.enabled }}
       initContainers:
+        {{- if .Values.seafile.persistence.enabled }}
+        - name: copy-seahub-config
+          image: busybox
+          command:
+            - sh
+            - -c
+            - |
+              mkdir -p /shared/seafile/conf
+              cp /seahub-config/seahub_settings.py /shared/seafile/conf/seahub_settings.py
+              {{- if and (eq .Values.seafile.edition "pro") .Values.seafile.seahub.ldap.enabled .Values.seafile.seahub.ldap.configMap }}
+              echo "" >> /shared/seafile/conf/seahub_settings.py
+              cat /ldap-config/{{ .Values.seafile.seahub.ldap.configMapKey }} >> /shared/seafile/conf/seahub_settings.py
+              {{- end }}
+              chmod 700 /shared/seafile/conf/seahub_settings.py
+          volumeMounts:
+            - name: seafile-data
+              mountPath: /shared
+            - name: seahub-config
+              mountPath: /seahub-config
+            {{- if and (eq .Values.seafile.edition "pro") .Values.seafile.seahub.ldap.enabled .Values.seafile.seahub.ldap.configMap }}
+            - name: ldap-config
+              mountPath: /ldap-config
+            {{- end }}
+        {{- end }}
+        {{- if and .Values.seafile.initMode .Values.seafile.persistence.enabled }}
         - name: set-ownership
           image: busybox
           command: ['sh', '-c', 'chown -R root:root /shared']
           volumeMounts:
             - name: seafile-data
               mountPath: /shared
-      {{- end }}
+        {{- end }}
       containers:
         - name: seafile
           image: {{ include "seafile.image" . }}
@@ -69,6 +93,13 @@ spec:
                   name: {{ .Values.seafile.cache.memcached.existingSecret }}
                   key: {{ .Values.seafile.cache.memcached.existingSecretKey }}
             {{- end }}
+            {{- if and (eq .Values.seafile.edition "pro") .Values.seafile.seahub.ldap.enabled }}
+            - name: LDAP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "seafile.secretName" . }}
+                  key: LDAP_ADMIN_PASSWORD
+            {{- end }}
           ports:
             - name: http
               containerPort: 80
@@ -77,6 +108,12 @@ spec:
             {{- if .Values.seafile.persistence.enabled }}
             - name: seafile-data
               mountPath: /shared
+            {{- end }}
+            {{- if and (ne .Values.seafile.edition "ce") .Values.seafile.license.existingSecret }}
+            - name: seafile-license
+              mountPath: /opt/seafile/seafile-license.txt
+              subPath: {{ .Values.seafile.license.secretKey }}
+              readOnly: true
             {{- end }}
             {{- if .Values.seafile.logging.ephemeral }}
             - name: seafile-logs
@@ -90,6 +127,19 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
       volumes:
+        - name: seahub-config
+          configMap:
+            name: {{ include "seafile.fullname" . }}-seahub
+        {{- if and (eq .Values.seafile.edition "pro") .Values.seafile.seahub.ldap.enabled .Values.seafile.seahub.ldap.configMap }}
+        - name: ldap-config
+          configMap:
+            name: {{ .Values.seafile.seahub.ldap.configMap }}
+        {{- end }}
+        {{- if and (ne .Values.seafile.edition "ce") .Values.seafile.license.existingSecret }}
+        - name: seafile-license
+          secret:
+            secretName: {{ .Values.seafile.license.existingSecret }}
+        {{- end }}
         {{- if .Values.seafile.persistence.enabled }}
         - name: seafile-data
           persistentVolumeClaim:

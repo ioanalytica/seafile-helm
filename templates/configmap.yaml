@@ -62,9 +62,13 @@ data:
   {{- if eq .Values.seafile.cache.provider "redis" }}
   REDIS_HOST: {{ .Values.seafile.cache.redis.host | quote }}
   REDIS_PORT: {{ .Values.seafile.cache.redis.port | quote }}
+  MEMCACHED_HOST: ""
+  MEMCACHED_PORT: ""
   {{- else if eq .Values.seafile.cache.provider "memcached" }}
   MEMCACHED_HOST: {{ .Values.seafile.cache.memcached.host | quote }}
   MEMCACHED_PORT: {{ .Values.seafile.cache.memcached.port | quote }}
+  REDIS_HOST: ""
+  REDIS_PORT: ""
   {{- end }}
 
   {{/* ---- Storage (pro only) ---- */}}

@@ -6,8 +6,9 @@ seafile:
   initMode: true
 
   # Container image
+  # repository defaults to seafileltd/seafile-{edition}-mc
   image:
-    repository: seafileltd/seafile-ce-mc
+    repository: ""
     # tag defaults to appVersion from Chart.yaml
     tag: ""
 
@@ -56,6 +57,7 @@ seafile:
   #                                   (unless cache.memcached.existingSecret is set)
   #   S3_SECRET_KEY                 - when edition is pro and storage.type is s3
   #   S3_SSE_C_KEY                  - when edition is pro and storage.type is s3
+  #   LDAP_ADMIN_PASSWORD           - when edition is pro and seahub.ldap.enabled is true
   existingSecret: ""
 
   # Image pull secrets
@@ -182,3 +184,45 @@ seafile:
   # Metadata
   metadata:
     fileCountLimit: 100000
+
+  # License (pro edition only)
+  # Mount a Seafile license file from an existing Secret.
+  # The secret should contain the license file content under the given key.
+  # Example: kubectl create secret generic seafile-license --from-file=seafile-license.txt
+  license:
+    existingSecret: ""        # e.g. seafile-license
+    secretKey: "seafile-license.txt"
+
+  # Seahub settings (written directly to seahub_settings.py)
+  # This gives the chart full control over seahub configuration,
+  # independent of Seafile Docker's env-var-based init.
+  seahub:
+    debug: false
+
+    # LDAP (pro edition only)
+    # The LDAP admin password should be provided via:
+    #   - existingSecret with key LDAP_ADMIN_PASSWORD, or
+    #   - seahub.ldap.adminPassword (not recommended for production)
+    # All other LDAP settings go in an external ConfigMap containing
+    # raw Python assignments (one per line). Example ConfigMap data:
+    #   ldap_settings.py: |
+    #     ENABLE_LDAP = True
+    #     LDAP_SERVER_URL = 'ldaps://ldap.example.com:636/'
+    #     LDAP_BASE_DN = 'dc=example,dc=com'
+    #     LDAP_ADMIN_DN = 'cn=admin,dc=example,dc=com'
+    #     LDAP_LOGIN_ATTR = 'uid'
+    #     LDAP_FILTER = 'memberOf=cn=seafile,ou=groups,dc=example,dc=com'
+    #     ENABLE_LDAP_USER_SYNC = True
+    #     LDAP_SYNC_INTERVAL = 60
+    ldap:
+      enabled: false
+      configMap: ""           # name of existing ConfigMap with LDAP settings
+      configMapKey: "ldap_settings.py"  # key within the ConfigMap
+      adminPassword: ""       # secret - use existingSecret for production
+
+    # Additional raw Python to append to seahub_settings.py
+    # Example:
+    #   rawConfig: |
+    #     ENABLE_SIGNUP = False
+    #     LOGIN_REMEMBER_DAYS = 7
+    rawConfig: ""

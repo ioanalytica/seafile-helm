@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "seafile.fullname" . }}-seahub
+  labels:
+    {{- include "seafile.labels" . | nindent 4 }}
+data:
+  seahub_settings.py: |
+    # -*- coding: utf-8 -*-
+    import os
+
+    DEBUG = {{ if .Values.seafile.seahub.debug }}True{{ else }}False{{ end }}
+
+    SERVICE_URL = '{{ .Values.seafile.server.protocol }}://{{ .Values.seafile.server.hostname }}'
+    CSRF_TRUSTED_ORIGINS = ['{{ .Values.seafile.server.protocol }}://{{ .Values.seafile.server.hostname }}']
+    FILE_SERVER_ROOT = '{{ .Values.seafile.server.protocol }}://{{ .Values.seafile.server.hostname }}/seafhttp'
+
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.mysql',
+            'NAME': {{ .Values.seafile.database.seahubDbName | squote }},
+            'USER': {{ .Values.seafile.database.user | squote }},
+            'PASSWORD': os.environ.get('SEAFILE_MYSQL_DB_PASSWORD', ''),
+            'HOST': {{ .Values.seafile.database.host | squote }},
+            'PORT': {{ .Values.seafile.database.port | squote }},
+            'OPTIONS': {'charset': 'utf8mb4'},
+        }
+    }
+
+    {{- if eq .Values.seafile.cache.provider "redis" }}
+
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': 'redis://:' + os.environ.get('REDIS_PASSWORD', '') + '@{{ .Values.seafile.cache.redis.host }}:{{ .Values.seafile.cache.redis.port }}/0',
+        }
+    }
+    {{- else if eq .Values.seafile.cache.provider "memcached" }}
+
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.memcached.PyMemcacheCache',
+            'LOCATION': '{{ .Values.seafile.cache.memcached.host }}:{{ .Values.seafile.cache.memcached.port }}',
+        }
+    }
+    {{- end }}
+
+    {{- if and (eq .Values.seafile.edition "pro") .Values.seafile.seahub.ldap.enabled }}
+
+    # LDAP
+    ENABLE_LDAP = True
+    LDAP_ADMIN_PASSWORD = os.environ.get('LDAP_ADMIN_PASSWORD', '')
+    {{- end }}
+
+    TIME_ZONE = {{ .Values.seafile.server.timezone | squote }}
+
+    {{- if .Values.seafile.seahub.rawConfig }}
+
+    {{ .Values.seafile.seahub.rawConfig | nindent 4 }}
+    {{- end }}
