@@ -11,16 +11,16 @@ spec:
       version: "13.0.19-1"
       sourceRef:
         kind: HelmRepository
-        name: seafile
+        name: ioanalytica-public
         namespace: flux-system
   values:
     seafile:
       edition: "ce"          # "ce" or "pro"
       initMode: true          # set to false after initial setup
 
-      image:
-        repository: seafileltd/seafile-ce-mc
-        # tag: ""             # defaults to appVersion
+      # image:
+      #   repository: ""      # defaults based on edition
+      #   tag: ""             # defaults to appVersion
 
       existingSecret: "seafile-secret"
 

@@ -12,17 +12,10 @@ A Helm chart for deploying [Seafile](https://www.seafile.com/) on Kubernetes. Su
 
 ## Quick Start
 
-### Add the Helm Repository
+### Install from OCI Registry
 
 ```bash
-helm repo add seafile https://ioanalytica.github.io/seafile-helm
-helm repo update
-```
-
-### Install
-
-```bash
-helm install seafile seafile/seafile \
+helm install seafile oci://ghcr.io/ioanalytica/charts/seafile \
   --namespace seafile --create-namespace \
   -f values.yaml
 ```
@@ -30,7 +23,7 @@ helm install seafile seafile/seafile \
 ### Upgrade
 
 ```bash
-helm upgrade seafile seafile/seafile \
+helm upgrade seafile oci://ghcr.io/ioanalytica/charts/seafile \
   --namespace seafile \
   -f values.yaml
 ```
@@ -53,18 +46,19 @@ helm upgrade seafile seafile/seafile -n seafile -f values.yaml
 
 ## Flux CD
 
-### Stable (from Helm repository)
+### Stable (from OCI registry)
 
 ```yaml
-# HelmRepository
+# HelmRepository (shared across all ioanalytica charts)
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: HelmRepository
 metadata:
-  name: seafile
+  name: ioanalytica-public
   namespace: flux-system
 spec:
-  interval: 1h
-  url: https://ioanalytica.github.io/seafile-helm
+  type: oci
+  interval: 30m
+  url: oci://ghcr.io/ioanalytica/charts
 ---
 # HelmRelease
 apiVersion: helm.toolkit.fluxcd.io/v2
@@ -77,10 +71,10 @@ spec:
   chart:
     spec:
       chart: seafile
-      version: "13.0.19-2"
+      version: "13.0.19-3"
       sourceRef:
         kind: HelmRepository
-        name: seafile
+        name: ioanalytica-public
         namespace: flux-system
   values:
     seafile:
@@ -274,7 +268,7 @@ seafile:
 |-----------|-------------|---------|
 | `seafile.edition` | `"ce"` or `"pro"` | `"ce"` |
 | `seafile.initMode` | Enable initialization mode for first deployment | `true` |
-| `seafile.image.repository` | Override image repository (defaults to `seafileltd/seafile-{edition}-mc`) | `""` |
+| `seafile.image.repository` | Override image repository (defaults to `seafileltd/seafile-mc` for CE, `seafileltd/seafile-pro-mc` for Pro) | `""` |
 | `seafile.image.tag` | Override image tag (defaults to `appVersion`) | `""` |
 | `seafile.existingSecret` | Name of pre-created Secret | `""` |
 | `seafile.imagePullSecrets` | Image pull secrets | `[]` |

@@ -6,9 +6,12 @@ on:
       - "v*"
   workflow_dispatch:
 
+env:
+  REGISTRY: ghcr.io
+
 permissions:
   contents: write
-  pages: write
+  packages: write
 
 jobs:
   release:
@@ -16,58 +19,26 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Install Helm
         uses: azure/setup-helm@v4
 
+      - name: Extract version
+        id: meta
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+
       - name: Package chart
-        run: |
-          helm package .
-          mkdir -p .cr-release-packages
-          mv *.tgz .cr-release-packages/
+        run: helm package .
 
-      - name: Prepare gh-pages branch
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
-            git clone --single-branch --branch gh-pages \
-              "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" .cr-index
-          else
-            mkdir .cr-index
-            cd .cr-index
-            git init
-            git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
-            git checkout -b gh-pages
-            echo '{"apiVersion":"v1","entries":{}}' > index.yaml
-            git add index.yaml
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git commit -m "Initialize Helm repo index"
-            git push -u origin gh-pages
-          fi
+      - name: Log in to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ${{ env.REGISTRY }} --username ${{ github.actor }} --password-stdin
 
-      - name: Update index
-        run: |
-          helm repo index .cr-release-packages \
-            --url https://github.com/ioanalytica/seafile-helm/releases/download/${{ github.ref_name }} \
-            --merge .cr-index/index.yaml
-          cp .cr-release-packages/index.yaml .cr-index/index.yaml
+      - name: Push Helm chart to OCI registry
+        run: helm push seafile-${{ steps.meta.outputs.version }}.tgz oci://${{ env.REGISTRY }}/ioanalytica/charts
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: .cr-release-packages/*.tgz
+          files: seafile-*.tgz
           generate_release_notes: true
-
-      - name: Push index to gh-pages
-        run: |
-          cd .cr-index
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add index.yaml
-          git diff --cached --quiet || git commit -m "Update Helm repo index for ${{ github.ref_name }}"
-          git push

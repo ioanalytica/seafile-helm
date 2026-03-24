@@ -1,8 +1,9 @@
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: HelmRepository
 metadata:
-  name: seafile
+  name: ioanalytica-public
   namespace: flux-system
 spec:
-  interval: 1h
-  url: https://ioanalytica.github.io/seafile-helm
+  type: oci
+  interval: 30m
+  url: oci://ghcr.io/ioanalytica/charts
