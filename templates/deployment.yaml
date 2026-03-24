@@ -51,6 +51,11 @@ spec:
               value: {{ .Values.seafile.database.seafileDbName | quote }}
             - name: SEAHUB_DB
               value: {{ .Values.seafile.database.seahubDbName | quote }}
+            - name: JWT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "seafile.secretName" . }}
+                  key: JWT_PRIVATE_KEY
           command:
             - sh
             - -c
@@ -81,7 +86,7 @@ spec:
                 echo "Patched ccnet.conf"
               fi
 
-              # seafile.conf: [database] section
+              # seafile.conf: [database] section + [notification] jwt_private_key
               if [ -f "$CONF/seafile.conf" ]; then
                 sed -i \
                   -e "s|^host = .*|host = $DB_HOST|" \
@@ -89,6 +94,7 @@ spec:
                   -e "s|^user = .*|user = $DB_USER|" \
                   -e "s|^password = .*|password = $DB_PASS|" \
                   -e "s|^name = .*|name = $SEAFILE_DB|" \
+                  -e "s|^jwt_private_key = .*|jwt_private_key = $JWT_KEY|" \
                   "$CONF/seafile.conf"
                 echo "Patched seafile.conf"
               fi
