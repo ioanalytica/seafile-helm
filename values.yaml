@@ -6,7 +6,7 @@ seafile:
   initMode: true
 
   # Container image
-  # repository defaults to seafileltd/seafile-{edition}-mc
+  # repository defaults to seafileltd/seafile-mc (CE) or seafileltd/seafile-pro-mc (Pro)
   image:
     repository: ""
     # tag defaults to appVersion from Chart.yaml

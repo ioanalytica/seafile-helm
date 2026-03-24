@@ -41,11 +41,17 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{/*
 Container image
+Docker Hub names: seafileltd/seafile-mc (CE), seafileltd/seafile-pro-mc (Pro)
 */}}
 {{- define "seafile.image" -}}
 {{- $tag := .Values.seafile.image.tag | default .Chart.AppVersion -}}
-{{- $repo := .Values.seafile.image.repository | default (printf "seafileltd/seafile-%s-mc" .Values.seafile.edition) -}}
-{{- printf "%s:%s" $repo $tag }}
+{{- if .Values.seafile.image.repository -}}
+  {{- printf "%s:%s" .Values.seafile.image.repository $tag }}
+{{- else if eq .Values.seafile.edition "pro" -}}
+  {{- printf "seafileltd/seafile-pro-mc:%s" $tag }}
+{{- else -}}
+  {{- printf "seafileltd/seafile-mc:%s" $tag }}
+{{- end }}
 {{- end }}
 
 {{/*
