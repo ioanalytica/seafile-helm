@@ -31,19 +31,79 @@ spec:
       {{- end }}
       initContainers:
         {{- if .Values.seafile.persistence.enabled }}
-        - name: copy-seahub-config
+        - name: configure
           image: busybox
+          env:
+            - name: DB_HOST
+              value: {{ .Values.seafile.database.host | quote }}
+            - name: DB_PORT
+              value: {{ .Values.seafile.database.port | quote }}
+            - name: DB_USER
+              value: {{ .Values.seafile.database.user | quote }}
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "seafile.secretName" . }}
+                  key: SEAFILE_MYSQL_DB_PASSWORD
+            - name: CCNET_DB
+              value: {{ .Values.seafile.database.ccnetDbName | quote }}
+            - name: SEAFILE_DB
+              value: {{ .Values.seafile.database.seafileDbName | quote }}
+            - name: SEAHUB_DB
+              value: {{ .Values.seafile.database.seahubDbName | quote }}
           command:
             - sh
             - -c
             - |
-              mkdir -p /shared/seafile/conf
-              cp /seahub-config/seahub_settings.py /shared/seafile/conf/seahub_settings.py
+              CONF=/shared/seafile/conf
+              mkdir -p "$CONF"
+
+              # --- seahub_settings.py (always written from chart) ---
+              cp /seahub-config/seahub_settings.py "$CONF/seahub_settings.py"
               {{- if and (eq .Values.seafile.edition "pro") .Values.seafile.seahub.ldap.enabled .Values.seafile.seahub.ldap.configMap }}
-              echo "" >> /shared/seafile/conf/seahub_settings.py
-              cat /ldap-config/{{ .Values.seafile.seahub.ldap.configMapKey }} >> /shared/seafile/conf/seahub_settings.py
+              echo "" >> "$CONF/seahub_settings.py"
+              cat /ldap-config/{{ .Values.seafile.seahub.ldap.configMapKey }} >> "$CONF/seahub_settings.py"
               {{- end }}
-              chmod 700 /shared/seafile/conf/seahub_settings.py
+              chmod 700 "$CONF/seahub_settings.py"
+
+              # --- Patch existing config files (after initial setup) ---
+              # Only patch if files exist (created by Seafile's init process)
+
+              # ccnet.conf: [Database] section
+              if [ -f "$CONF/ccnet.conf" ]; then
+                sed -i \
+                  -e "s|^HOST = .*|HOST = $DB_HOST|" \
+                  -e "s|^PORT = .*|PORT = $DB_PORT|" \
+                  -e "s|^USER = .*|USER = $DB_USER|" \
+                  -e "s|^PASSWD = .*|PASSWD = $DB_PASS|" \
+                  -e "s|^DB = .*|DB = $CCNET_DB|" \
+                  "$CONF/ccnet.conf"
+                echo "Patched ccnet.conf"
+              fi
+
+              # seafile.conf: [database] section
+              if [ -f "$CONF/seafile.conf" ]; then
+                sed -i \
+                  -e "s|^host = .*|host = $DB_HOST|" \
+                  -e "s|^port = .*|port = $DB_PORT|" \
+                  -e "s|^user = .*|user = $DB_USER|" \
+                  -e "s|^password = .*|password = $DB_PASS|" \
+                  -e "s|^name = .*|name = $SEAFILE_DB|" \
+                  "$CONF/seafile.conf"
+                echo "Patched seafile.conf"
+              fi
+
+              # seafevents.conf: [DATABASE] section
+              if [ -f "$CONF/seafevents.conf" ]; then
+                sed -i \
+                  -e "s|^host = .*|host = $DB_HOST|" \
+                  -e "s|^port = .*|port = $DB_PORT|" \
+                  -e "s|^username = .*|username = $DB_USER|" \
+                  -e "s|^password = .*|password = $DB_PASS|" \
+                  -e "s|^name = .*|name = $SEAHUB_DB|" \
+                  "$CONF/seafevents.conf"
+                echo "Patched seafevents.conf"
+              fi
           volumeMounts:
             - name: seafile-data
               mountPath: /shared
