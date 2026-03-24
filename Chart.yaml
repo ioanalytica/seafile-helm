@@ -1,6 +1,6 @@
 apiVersion: v2
 name: seafile
-description: Helm chart for Seafile Pro CE/PRO
+description: Helm chart for Seafile - Pro and Community Edition
 type: application
 version: "13.0.19-1"
 appVersion: "13.0.19"
