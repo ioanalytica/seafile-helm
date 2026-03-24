@@ -28,11 +28,26 @@ jobs:
           mkdir -p .cr-release-packages
           mv *.tgz .cr-release-packages/
 
-      - name: Checkout gh-pages
-        uses: actions/checkout@v4
-        with:
-          ref: gh-pages
-          path: .cr-index
+      - name: Prepare gh-pages branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
+            git clone --single-branch --branch gh-pages \
+              "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" .cr-index
+          else
+            mkdir .cr-index
+            cd .cr-index
+            git init
+            git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+            git checkout -b gh-pages
+            echo '{"apiVersion":"v1","entries":{}}' > index.yaml
+            git add index.yaml
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git commit -m "Initialize Helm repo index"
+            git push -u origin gh-pages
+          fi
 
       - name: Update index
         run: |
@@ -43,6 +58,7 @@ jobs:
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
         with:
           files: .cr-release-packages/*.tgz
           generate_release_notes: true
