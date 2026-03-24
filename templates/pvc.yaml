@@ -1,0 +1,17 @@
+{{- if and .Values.seafile.persistence.enabled (not .Values.seafile.persistence.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "seafile.fullname" . }}-data
+  labels:
+    {{- include "seafile.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.seafile.persistence.accessMode }}
+  {{- if .Values.seafile.persistence.storageClassName }}
+  storageClassName: {{ .Values.seafile.persistence.storageClassName | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.seafile.persistence.size }}
+{{- end }}

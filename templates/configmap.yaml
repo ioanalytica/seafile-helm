@@ -1,0 +1,106 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "seafile.fullname" . }}-env
+  labels:
+    {{- include "seafile.labels" . | nindent 4 }}
+data:
+  {{/* ---- Validation ---- */}}
+
+  {{- if not .Values.seafile.server.hostname }}
+    {{- fail "seafile.server.hostname is required" }}
+  {{- end }}
+  {{- if not .Values.seafile.database.host }}
+    {{- fail "seafile.database.host is required" }}
+  {{- end }}
+  {{- if and .Values.seafile.initMode (not .Values.seafile.admin.email) }}
+    {{- fail "seafile.admin.email is required when initMode is true" }}
+  {{- end }}
+  {{- if and (eq .Values.seafile.cache.provider "redis") (not .Values.seafile.cache.redis.host) }}
+    {{- fail "seafile.cache.redis.host is required when cache.provider is redis" }}
+  {{- end }}
+  {{- if and (eq .Values.seafile.cache.provider "memcached") (not .Values.seafile.cache.memcached.host) }}
+    {{- fail "seafile.cache.memcached.host is required when cache.provider is memcached" }}
+  {{- end }}
+  {{- if and (eq .Values.seafile.edition "pro") (eq .Values.seafile.storage.type "s3") }}
+    {{- if or (not .Values.seafile.storage.s3.commitBucket) (not .Values.seafile.storage.s3.fsBucket) (not .Values.seafile.storage.s3.blockBucket) (not .Values.seafile.storage.s3.keyId) }}
+      {{- fail "seafile.storage.s3 buckets (commitBucket, fsBucket, blockBucket) and keyId are required when storage.type is s3" }}
+    {{- end }}
+  {{- end }}
+  {{- if and .Values.seafile.notification.enabled (not .Values.seafile.notification.url) }}
+    {{- fail "seafile.notification.url is required when notification.enabled is true" }}
+  {{- end }}
+  {{- if and .Values.seafile.seadoc.enabled (not .Values.seafile.seadoc.url) }}
+    {{- fail "seafile.seadoc.url is required when seadoc.enabled is true" }}
+  {{- end }}
+  {{- if and .Values.seafile.ai.enabled (not .Values.seafile.ai.url) }}
+    {{- fail "seafile.ai.url is required when ai.enabled is true" }}
+  {{- end }}
+
+  {{/* ---- Server ---- */}}
+  SEAFILE_SERVER_HOSTNAME: {{ .Values.seafile.server.hostname | quote }}
+  SEAFILE_SERVER_PROTOCOL: {{ .Values.seafile.server.protocol | quote }}
+  SITE_ROOT: {{ .Values.seafile.server.siteRoot | quote }}
+  TIME_ZONE: {{ .Values.seafile.server.timezone | quote }}
+  SEAFILE_LOG_TO_STDOUT: {{ .Values.seafile.server.logToStdout | quote }}
+
+  {{/* ---- Admin (init only) ---- */}}
+  {{- if .Values.seafile.initMode }}
+  INIT_SEAFILE_ADMIN_EMAIL: {{ .Values.seafile.admin.email | quote }}
+  {{- end }}
+
+  {{/* ---- Database ---- */}}
+  SEAFILE_MYSQL_DB_HOST: {{ .Values.seafile.database.host | quote }}
+  SEAFILE_MYSQL_DB_PORT: {{ .Values.seafile.database.port | quote }}
+  SEAFILE_MYSQL_DB_USER: {{ .Values.seafile.database.user | quote }}
+  SEAFILE_MYSQL_DB_CCNET_DB_NAME: {{ .Values.seafile.database.ccnetDbName | quote }}
+  SEAFILE_MYSQL_DB_SEAFILE_DB_NAME: {{ .Values.seafile.database.seafileDbName | quote }}
+  SEAFILE_MYSQL_DB_SEAHUB_DB_NAME: {{ .Values.seafile.database.seahubDbName | quote }}
+
+  {{/* ---- Cache ---- */}}
+  CACHE_PROVIDER: {{ .Values.seafile.cache.provider | quote }}
+  {{- if eq .Values.seafile.cache.provider "redis" }}
+  REDIS_HOST: {{ .Values.seafile.cache.redis.host | quote }}
+  REDIS_PORT: {{ .Values.seafile.cache.redis.port | quote }}
+  {{- else if eq .Values.seafile.cache.provider "memcached" }}
+  MEMCACHED_HOST: {{ .Values.seafile.cache.memcached.host | quote }}
+  MEMCACHED_PORT: {{ .Values.seafile.cache.memcached.port | quote }}
+  {{- end }}
+
+  {{/* ---- Storage (pro only) ---- */}}
+  {{- if eq .Values.seafile.edition "pro" }}
+  SEAF_SERVER_STORAGE_TYPE: {{ .Values.seafile.storage.type | quote }}
+  {{- if eq .Values.seafile.storage.type "s3" }}
+  S3_COMMIT_BUCKET: {{ .Values.seafile.storage.s3.commitBucket | quote }}
+  S3_FS_BUCKET: {{ .Values.seafile.storage.s3.fsBucket | quote }}
+  S3_BLOCK_BUCKET: {{ .Values.seafile.storage.s3.blockBucket | quote }}
+  S3_KEY_ID: {{ .Values.seafile.storage.s3.keyId | quote }}
+  S3_USE_V4_SIGNATURE: {{ .Values.seafile.storage.s3.useV4Signature | quote }}
+  S3_AWS_REGION: {{ .Values.seafile.storage.s3.region | quote }}
+  S3_HOST: {{ .Values.seafile.storage.s3.host | quote }}
+  S3_USE_HTTPS: {{ .Values.seafile.storage.s3.useHttps | quote }}
+  S3_PATH_STYLE_REQUEST: {{ .Values.seafile.storage.s3.pathStyleRequest | quote }}
+  {{- end }}
+  {{- end }}
+
+  {{/* ---- Notification ---- */}}
+  ENABLE_NOTIFICATION_SERVER: {{ .Values.seafile.notification.enabled | quote }}
+  {{- if .Values.seafile.notification.enabled }}
+  NOTIFICATION_SERVER_URL: {{ .Values.seafile.notification.url | quote }}
+  INNER_NOTIFICATION_SERVER_URL: {{ .Values.seafile.notification.url | quote }}
+  {{- end }}
+
+  {{/* ---- SeaDoc ---- */}}
+  ENABLE_SEADOC: {{ .Values.seafile.seadoc.enabled | quote }}
+  {{- if .Values.seafile.seadoc.enabled }}
+  SEADOC_SERVER_URL: {{ .Values.seafile.seadoc.url | quote }}
+  {{- end }}
+
+  {{/* ---- Seafile AI ---- */}}
+  ENABLE_SEAFILE_AI: {{ .Values.seafile.ai.enabled | quote }}
+  {{- if .Values.seafile.ai.enabled }}
+  SEAFILE_AI_SERVER_URL: {{ .Values.seafile.ai.url | quote }}
+  {{- end }}
+
+  {{/* ---- Metadata ---- */}}
+  MD_FILE_COUNT_LIMIT: {{ .Values.seafile.metadata.fileCountLimit | quote }}

@@ -1,0 +1,12 @@
+apiVersion: v2
+name: seafile
+description: Helm chart for Seafile Pro CE/PRO
+type: application
+version: "13.0.19-1"
+appVersion: "13.0.19"
+home: https://ioanalytica.com
+sources:
+  - https://github.com/ioanalytica/seafile-helm
+maintainers:
+  - name: ioanalytica
+icon: https://github.com/ioanalytica/seafile-helm/seafile_logo.svg

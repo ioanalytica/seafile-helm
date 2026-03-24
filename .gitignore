@@ -1,0 +1,7 @@
+.*
+!.gitignore
+!.gitmodules
+!.gitlab-ci.*
+!.dockerignore
+!.github
+*.tgz

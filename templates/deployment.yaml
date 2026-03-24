@@ -1,0 +1,105 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "seafile.fullname" . }}
+  labels:
+    {{- include "seafile.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "seafile.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "seafile.selectorLabels" . | nindent 8 }}
+      annotations:
+        kubectl.kubernetes.io/default-container: "seafile"
+    spec:
+      enableServiceLinks: false
+      {{- with .Values.seafile.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.seafile.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.seafile.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if and .Values.seafile.initMode .Values.seafile.persistence.enabled }}
+      initContainers:
+        - name: set-ownership
+          image: busybox
+          command: ['sh', '-c', 'chown -R root:root /shared']
+          volumeMounts:
+            - name: seafile-data
+              mountPath: /shared
+      {{- end }}
+      containers:
+        - name: seafile
+          image: {{ include "seafile.image" . }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "seafile.fullname" . }}-env
+            - secretRef:
+                name: {{ include "seafile.secretName" . }}
+          {{- with .Values.seafile.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            - name: SEAFILE_AI_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "seafile.secretName" . }}
+                  key: JWT_PRIVATE_KEY
+            {{- if and (eq .Values.seafile.cache.provider "redis") .Values.seafile.cache.redis.existingSecret }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.seafile.cache.redis.existingSecret }}
+                  key: {{ .Values.seafile.cache.redis.existingSecretKey }}
+            {{- end }}
+            {{- if and (eq .Values.seafile.cache.provider "memcached") .Values.seafile.cache.memcached.existingSecret }}
+            - name: MEMCACHED_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.seafile.cache.memcached.existingSecret }}
+                  key: {{ .Values.seafile.cache.memcached.existingSecretKey }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          volumeMounts:
+            {{- if .Values.seafile.persistence.enabled }}
+            - name: seafile-data
+              mountPath: /shared
+            {{- end }}
+            {{- if .Values.seafile.logging.ephemeral }}
+            - name: seafile-logs
+              mountPath: /shared/seafile/logs
+            {{- end }}
+            {{- with .Values.seafile.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.seafile.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        {{- if .Values.seafile.persistence.enabled }}
+        - name: seafile-data
+          persistentVolumeClaim:
+            claimName: {{ .Values.seafile.persistence.existingClaim | default (printf "%s-data" (include "seafile.fullname" .)) }}
+        {{- end }}
+        {{- if .Values.seafile.logging.ephemeral }}
+        - name: seafile-logs
+          emptyDir: {}
+        {{- end }}
+        {{- with .Values.seafile.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      restartPolicy: Always

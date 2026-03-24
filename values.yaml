@@ -1,0 +1,184 @@
+seafile:
+  # Edition: "ce" (Community) or "pro" (Professional)
+  edition: "ce"
+
+  # Initialization mode - set to true for first deployment
+  initMode: true
+
+  # Container image
+  image:
+    repository: seafileltd/seafile-ce-mc
+    # tag defaults to appVersion from Chart.yaml
+    tag: ""
+
+  # Service configuration
+  service:
+    type: ClusterIP
+    # loadBalancerIP: ""
+
+  # Ingress configuration
+  ingress:
+    enabled: false
+    ingressClassName: ""
+    annotations: {}
+    hosts:
+      - host: seafile.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls: []
+    #  - secretName: seafile-tls
+    #    hosts:
+    #      - seafile.example.com
+
+  # Persistent storage
+  persistence:
+    enabled: true
+    storageClassName: ""
+    accessMode: ReadWriteOnce
+    size: 10Gi
+    existingClaim: ""
+
+  # Use a pre-created secret instead of chart-managed one.
+  # For production, this is strongly recommended over setting passwords
+  # in values.yaml, which end up in plain text in Helm release metadata.
+  # Create the secret manually or via an external secrets operator and
+  # reference it here.
+  #
+  # Expected keys:
+  #   JWT_PRIVATE_KEY               - always required
+  #   SEAFILE_MYSQL_DB_PASSWORD     - always required
+  #   INIT_SEAFILE_ADMIN_PASSWORD   - required when initMode is true
+  #   INIT_SEAFILE_MYSQL_ROOT_PASSWORD - required when initMode is true
+  #   REDIS_PASSWORD                - when cache.provider is redis
+  #                                   (unless cache.redis.existingSecret is set)
+  #   MEMCACHED_PASSWORD            - when cache.provider is memcached
+  #                                   (unless cache.memcached.existingSecret is set)
+  #   S3_SECRET_KEY                 - when edition is pro and storage.type is s3
+  #   S3_SSE_C_KEY                  - when edition is pro and storage.type is s3
+  existingSecret: ""
+
+  # Image pull secrets
+  imagePullSecrets: []
+  #  - name: regcred
+
+  # Pod scheduling
+  nodeSelector: {}
+  tolerations: []
+
+  # Resources
+  resources: {}
+
+  # Extra env sources (configMapRef/secretRef)
+  extraEnv: []
+
+  # Extra volumes and mounts
+  extraVolumes: []
+  #  - name: custom-config
+  #    configMap:
+  #      name: my-seafile-config
+  #  - name: extra-storage
+  #    persistentVolumeClaim:
+  #      claimName: extra-data-pvc
+  #  - name: tmp
+  #    emptyDir: {}
+  extraVolumeMounts: []
+  #  - name: custom-config
+  #    mountPath: /etc/seafile/custom
+  #    readOnly: true
+  #  - name: extra-storage
+  #    mountPath: /extra-data
+  #  - name: tmp
+  #    mountPath: /tmp
+
+  # ---------------------------------------------------------------------------
+  # Seafile Configuration
+  # ---------------------------------------------------------------------------
+
+  # Server
+  server:
+    hostname: ""              # required - e.g. seafile.example.com
+    protocol: "https"
+    siteRoot: "/"
+    timezone: "UTC"
+    logToStdout: true
+
+  # Logging - mount emptyDir over /shared/seafile/logs to prevent
+  # log accumulation on the PVC. Logs are ephemeral and can be
+  # collected by Promtail/Loki or similar.
+  logging:
+    ephemeral: true
+
+  # Admin
+  # For production, set passwords via existingSecret instead of here.
+  admin:
+    email: ""                 # required when initMode is true
+    password: ""              # secret - use existingSecret for production
+
+  # Database
+  # For production, set passwords via existingSecret instead of here.
+  database:
+    host: ""                  # required - e.g. mariadb.seafile.svc
+    port: 3306
+    user: "seafile"
+    password: ""              # secret - use existingSecret for production
+    rootPassword: ""          # secret - used during init only
+    ccnetDbName: "ccnet_db"
+    seafileDbName: "seafile_db"
+    seahubDbName: "seahub_db"
+
+  # Cache
+  # For production, use existingSecret per provider instead of password here.
+  cache:
+    provider: "redis"         # "redis" or "memcached"
+    redis:
+      host: ""                # required when provider is redis
+      port: 6379
+      password: ""            # use existingSecret for production
+      existingSecret: ""      # e.g. redis-credentials
+      existingSecretKey: "redis-password"  # key within the existing secret
+    memcached:
+      host: ""                # required when provider is memcached
+      port: 11211
+      password: ""            # use existingSecret for production
+      existingSecret: ""
+      existingSecretKey: "memcached-password"
+
+  # Object storage (pro edition only)
+  storage:
+    type: "disk"              # "disk" or "s3"
+    s3:
+      commitBucket: ""
+      fsBucket: ""
+      blockBucket: ""
+      keyId: ""
+      secretKey: ""           # secret - use existingSecret for production
+      sseCKey: ""             # secret - use existingSecret for production
+      useV4Signature: true
+      region: "us-east-1"
+      host: ""                # for S3-compatible services
+      useHttps: true
+      pathStyleRequest: false
+
+  # JWT
+  jwt:
+    privateKey: ""            # secret - use existingSecret for production
+
+  # Notification server
+  notification:
+    enabled: false
+    url: ""                   # required when enabled
+
+  # SeaDoc
+  seadoc:
+    enabled: false
+    url: ""                   # required when enabled
+
+  # Seafile AI
+  ai:
+    enabled: false
+    url: ""                   # required when enabled
+
+  # Metadata
+  metadata:
+    fileCountLimit: 100000

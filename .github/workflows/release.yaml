@@ -1,0 +1,57 @@
+name: Release Helm Chart
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Package chart
+        run: |
+          helm package .
+          mkdir -p .cr-release-packages
+          mv *.tgz .cr-release-packages/
+
+      - name: Checkout gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: .cr-index
+
+      - name: Update index
+        run: |
+          helm repo index .cr-release-packages \
+            --url https://github.com/ioanalytica/seafile-helm/releases/download/${{ github.ref_name }} \
+            --merge .cr-index/index.yaml
+          cp .cr-release-packages/index.yaml .cr-index/index.yaml
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: .cr-release-packages/*.tgz
+          generate_release_notes: true
+
+      - name: Push index to gh-pages
+        run: |
+          cd .cr-index
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.yaml
+          git diff --cached --quiet || git commit -m "Update Helm repo index for ${{ github.ref_name }}"
+          git push

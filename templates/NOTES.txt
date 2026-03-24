@@ -1,0 +1,24 @@
+Seafile {{ .Values.seafile.edition | upper }} has been deployed.
+
+Edition: {{ .Values.seafile.edition }}
+Image:   {{ include "seafile.image" . }}
+
+{{- if .Values.seafile.initMode }}
+
+IMPORTANT: initMode is enabled. After the initial setup completes:
+  1. Set seafile.initMode to false in your values
+  2. Upgrade the release: helm upgrade {{ .Release.Name }} .
+{{- end }}
+
+To access Seafile:
+{{- if .Values.seafile.ingress.enabled }}
+{{- range .Values.seafile.ingress.hosts }}
+  http{{ if $.Values.seafile.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+{{- else if eq .Values.seafile.service.type "LoadBalancer" }}
+  NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+  kubectl get svc {{ include "seafile.fullname" . }} -n {{ .Release.Namespace }} -w
+{{- else }}
+  kubectl port-forward svc/{{ include "seafile.fullname" . }} 8080:80 -n {{ .Release.Namespace }}
+  Then open: http://localhost:8080
+{{- end }}

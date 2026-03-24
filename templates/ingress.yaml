@@ -1,0 +1,41 @@
+{{- if .Values.seafile.ingress.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "seafile.fullname" . }}
+  labels:
+    {{- include "seafile.labels" . | nindent 4 }}
+  {{- with .Values.seafile.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.seafile.ingress.ingressClassName }}
+  ingressClassName: {{ .Values.seafile.ingress.ingressClassName }}
+  {{- end }}
+  {{- if .Values.seafile.ingress.tls }}
+  tls:
+    {{- range .Values.seafile.ingress.tls }}
+    - hosts:
+        {{- range .hosts }}
+        - {{ . | quote }}
+        {{- end }}
+      secretName: {{ .secretName }}
+    {{- end }}
+  {{- end }}
+  rules:
+    {{- range .Values.seafile.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ include "seafile.fullname" $ }}
+                port:
+                  name: http
+          {{- end }}
+    {{- end }}
+{{- end }}

@@ -1,0 +1,63 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: seafile
+  namespace: seafile
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: seafile
+      version: "13.0.19-1"
+      sourceRef:
+        kind: HelmRepository
+        name: seafile
+        namespace: flux-system
+  values:
+    seafile:
+      edition: "ce"          # "ce" or "pro"
+      initMode: true          # set to false after initial setup
+
+      image:
+        repository: seafileltd/seafile-ce-mc
+        # tag: ""             # defaults to appVersion
+
+      existingSecret: "seafile-secret"
+
+      server:
+        hostname: "seafile.example.com"
+        protocol: "https"
+
+      admin:
+        email: "admin@example.com"
+
+      database:
+        host: "mariadb.seafile.svc.cluster.local"
+
+      cache:
+        provider: "redis"
+        redis:
+          host: "redis-master.seafile.svc.cluster.local"
+          existingSecret: "redis-credentials"
+          existingSecretKey: "redis-password"
+
+      persistence:
+        enabled: true
+        storageClassName: "local-path"
+        size: 50Gi
+
+      logging:
+        ephemeral: true
+
+      # ingress:
+      #   enabled: true
+      #   ingressClassName: "traefik"
+      #   hosts:
+      #     - host: seafile.example.com
+      #       paths:
+      #         - path: /
+      #           pathType: Prefix
+      #   tls:
+      #     - secretName: seafile-tls
+      #       hosts:
+      #         - seafile.example.com
