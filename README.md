@@ -44,6 +44,116 @@ helm install seafile seafile/seafile -n seafile -f values.yaml
 helm upgrade seafile seafile/seafile -n seafile -f values.yaml
 ```
 
+## Migrating an Existing Installation
+
+If you have an existing Seafile instance (Docker Compose, manual install, or the official Helm chart), you can migrate it to this chart. The key rule: **always use `initMode: false`** — your databases, config files, and data already exist.
+
+### Prerequisites
+
+Before migrating, gather the following from your current installation:
+
+1. **Database credentials** — host, port, user, password, and the three database names (`ccnet_db`, `seafile_db`, `seahub_db`)
+2. **JWT private key** — from `seafile.conf` under `[notification]` → `jwt_private_key`
+3. **Cache configuration** — Redis or Memcached host, port, and password
+4. **Storage** — if using S3: endpoint, buckets, access key, and secret key
+5. **LDAP settings** — if applicable: server URL, base DN, admin DN, password, filters, sync options
+6. **License file** — for Pro edition
+7. **The PVC or data directory** — containing `/shared/seafile/`
+
+### Steps
+
+1. **Make the existing data volume available** as a PVC in your Kubernetes cluster. Use `persistence.existingClaim` to reference it:
+
+   ```yaml
+   seafile:
+     persistence:
+       existingClaim: "my-existing-seafile-data"
+   ```
+
+2. **Create the Kubernetes Secret** with your existing credentials:
+
+   ```bash
+   kubectl create secret generic seafile-secret -n seafile \
+     --from-literal=JWT_PRIVATE_KEY='<from seafile.conf>' \
+     --from-literal=SEAFILE_MYSQL_DB_PASSWORD='<your db password>' \
+     --from-literal=REDIS_PASSWORD='<your redis password>'
+   ```
+
+3. **Prepare your `values.yaml`** with all settings matching your current installation:
+
+   ```yaml
+   seafile:
+     edition: "pro"              # or "ce"
+     initMode: false             # critical — do NOT run init on an existing installation
+
+     existingSecret: "seafile-secret"
+
+     server:
+       hostname: "seafile.example.com"
+       protocol: "https"
+       timezone: "Europe/Berlin"
+
+     database:
+       host: "mariadb.example.com"
+       user: "seafile"
+       # password comes from existingSecret
+
+     cache:
+       provider: "redis"
+       redis:
+         host: "redis.example.com"
+         existingSecret: "redis-credentials"
+         existingSecretKey: "redis-password"
+
+     persistence:
+       existingClaim: "my-existing-seafile-data"
+
+     # If using S3 storage:
+     # storage:
+     #   type: "s3"
+     #   s3:
+     #     host: "s3.example.com"
+     #     commitBucket: "seafile-commit"
+     #     fsBucket: "seafile-fs"
+     #     blockBucket: "seafile-block"
+     #     keyId: "your-access-key"
+     #     pathStyleRequest: true    # for MinIO
+
+     seahub:
+       debug: false
+       # rawConfig for any additional seahub_settings.py settings
+       # that were in your original installation
+   ```
+
+4. **If using LDAP**, create the LDAP ConfigMap with your existing settings (excluding `ENABLE_LDAP` and `LDAP_ADMIN_PASSWORD` — the chart manages those) and add `LDAP_ADMIN_PASSWORD` to your secret.
+
+5. **If using Pro edition**, create the license secret:
+
+   ```bash
+   kubectl create secret generic seafile-license -n seafile \
+     --from-file=seafile-license.txt=/path/to/your/license
+   ```
+
+6. **Deploy**:
+
+   ```bash
+   helm install seafile oci://ghcr.io/ioanalytica/charts/seafile \
+     --namespace seafile -f values.yaml
+   ```
+
+7. **Verify** that the init container patches the config files correctly. The [Configuration Sync](#configuration-sync) mechanism will update `ccnet.conf`, `seafile.conf`, `seafevents.conf`, and `seahub_settings.py` to match your chart values. Check the pod logs:
+
+   ```bash
+   kubectl logs deploy/seafile -c configure -n seafile
+   ```
+
+### Important Notes
+
+- **Never use `initMode: true`** on an existing installation — it would attempt to re-create databases and overwrite your admin account.
+- The chart's [Configuration Sync](#configuration-sync) will patch your existing config files on the PVC to match the chart values. This is the desired behaviour — it ensures the config files stay in sync going forward.
+- Any custom settings in `seahub_settings.py` that are not covered by chart values should be added via `seahub.rawConfig` or an LDAP ConfigMap. The chart **replaces** `seahub_settings.py` on every start.
+- After the first successful start, verify your settings by inspecting the config files on the PVC.
+
 ## Configuration Sync
 
 A key difference between this chart and all other Seafile deployment methods (Docker Compose, manual install, the official Helm chart): **configuration files on the PVC are kept in sync with chart values on every pod start.**
