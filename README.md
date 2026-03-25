@@ -44,6 +44,21 @@ helm install seafile seafile/seafile -n seafile -f values.yaml
 helm upgrade seafile seafile/seafile -n seafile -f values.yaml
 ```
 
+## Configuration Sync
+
+A key difference between this chart and all other Seafile deployment methods (Docker Compose, manual install, the official Helm chart): **configuration files on the PVC are kept in sync with chart values on every pod start.**
+
+In a standard Seafile deployment, environment variables and settings are only used during the initial setup to generate config files (`ccnet.conf`, `seafile.conf`, `seafevents.conf`, `seahub_settings.py`). After init, these files on the PVC take precedence and are never updated — changing an environment variable or Helm value has no effect.
+
+This chart solves that problem. An init container runs on every pod start and:
+
+- **`seahub_settings.py`** — fully generated from chart values (`database`, `cache`, `seahub.debug`, `server.hostname`, LDAP, etc.) and written to the PVC, replacing any previous version
+- **`ccnet.conf`** — patches `HOST`, `PORT`, `USER`, `PASSWD`, and `DB` in the `[Database]` section
+- **`seafile.conf`** — patches `host`, `port`, `user`, `password`, and `name` in the `[database]` section, and `jwt_private_key` in the `[notification]` section
+- **`seafevents.conf`** — patches `host`, `port`, `username`, `password`, and `name` in the `[DATABASE]` section
+
+This means you can change database credentials, cache provider, JWT key, LDAP settings, or any other chart value and simply restart the pod — the config files will be updated automatically.
+
 ## Flux CD
 
 ### Stable (from OCI registry)
@@ -120,20 +135,24 @@ spec:
 
 ### Chart-managed Secret
 
-For quick testing, set passwords directly in `values.yaml`. The chart creates a Secret automatically:
+For quick testing, set passwords directly in `values.yaml`. The chart creates a Secret named `seafile-secret`:
 
 ```yaml
-seafile:
-  admin:
-    password: "changeme"
-  database:
-    password: "dbpass"
-    rootPassword: "rootpass"
-  jwt:
-    privateKey: "your-jwt-key"
-  cache:
-    redis:
-      password: "redispass"
+apiVersion: v1
+kind: Secret
+type: Opaque
+metadata:
+  name: seafile-secret
+stringData:
+  JWT_PRIVATE_KEY: ""
+  SEAFILE_MYSQL_DB_PASSWORD: ""
+  INIT_SEAFILE_ADMIN_PASSWORD: ""         # only when initMode is true
+  INIT_SEAFILE_MYSQL_ROOT_PASSWORD: ""    # only when initMode is true
+  REDIS_PASSWORD: ""                      # when cache.provider is redis
+  # MEMCACHED_PASSWORD: ""               # when cache.provider is memcached
+  # S3_SECRET_KEY: ""                    # pro edition with storage.type s3
+  # S3_SSE_C_KEY: ""                     # pro edition with storage.type s3
+  # LDAP_ADMIN_PASSWORD: ""              # pro edition with seahub.ldap.enabled
 ```
 
 ### External Secret (recommended for production)
@@ -234,7 +253,7 @@ seafile:
 
 ## Seahub Settings
 
-The chart generates `seahub_settings.py` and writes it to the PVC on every pod start. This includes `DATABASES`, `CACHES`, `SERVICE_URL`, `CSRF_TRUSTED_ORIGINS`, `DEBUG`, and timezone settings derived from your values.
+As described in [Configuration Sync](#configuration-sync), the chart generates `seahub_settings.py` from your values and writes it to the PVC on every pod start. This includes `DATABASES`, `CACHES`, `SERVICE_URL`, `CSRF_TRUSTED_ORIGINS`, `DEBUG`, and timezone settings. Passwords are read from environment variables at runtime via `os.environ.get()` — they never appear in the ConfigMap.
 
 For additional Seahub settings, use `rawConfig`:
 
@@ -415,8 +434,6 @@ seafile:
 
 See the [`examples/`](examples/) directory:
 
-- `bootstrap/pvc/` - Quick start with PVC storage and chart-managed secrets
-- `bootstrap/s3/` - Production-like setup with S3 storage, external secrets, LDAP, and license
-- `helmrepository.yaml` - Flux HelmRepository resource
+- `helmrepository.yaml` - Flux HelmRepository resource (OCI)
 - `helmrelease.yaml` - Flux HelmRelease for stable releases
 - `helmrelease-dev.yaml` - Flux HelmRelease for development (from Git)
