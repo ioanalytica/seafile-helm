@@ -73,41 +73,47 @@ spec:
 
               # --- Patch existing config files (after initial setup) ---
               # Only patch if files exist (created by Seafile's init process)
+              # Uses section-aware awk to only replace keys within the target section
+
+              # patch_ini FILE SECTION KEY VALUE
+              # Replaces KEY = ... only within [SECTION], leaves other sections untouched
+              patch_ini() {
+                _file="$1" _section="$2" _key="$3" _value="$4"
+                awk -v section="$_section" -v key="$_key" -v val="$_value" '
+                  /^\[/ { in_section = ($0 == "[" section "]") }
+                  in_section && $0 ~ "^" key " *= " { print key " = " val; next }
+                  { print }
+                ' "$_file" > "$_file.tmp" && mv "$_file.tmp" "$_file"
+              }
 
               # ccnet.conf: [Database] section
               if [ -f "$CONF/ccnet.conf" ]; then
-                sed -i \
-                  -e "s|^HOST = .*|HOST = $DB_HOST|" \
-                  -e "s|^PORT = .*|PORT = $DB_PORT|" \
-                  -e "s|^USER = .*|USER = $DB_USER|" \
-                  -e "s|^PASSWD = .*|PASSWD = $DB_PASS|" \
-                  -e "s|^DB = .*|DB = $CCNET_DB|" \
-                  "$CONF/ccnet.conf"
+                patch_ini "$CONF/ccnet.conf" "Database" "HOST" "$DB_HOST"
+                patch_ini "$CONF/ccnet.conf" "Database" "PORT" "$DB_PORT"
+                patch_ini "$CONF/ccnet.conf" "Database" "USER" "$DB_USER"
+                patch_ini "$CONF/ccnet.conf" "Database" "PASSWD" "$DB_PASS"
+                patch_ini "$CONF/ccnet.conf" "Database" "DB" "$CCNET_DB"
                 echo "Patched ccnet.conf"
               fi
 
               # seafile.conf: [database] section + [notification] jwt_private_key
               if [ -f "$CONF/seafile.conf" ]; then
-                sed -i \
-                  -e "s|^host = .*|host = $DB_HOST|" \
-                  -e "s|^port = .*|port = $DB_PORT|" \
-                  -e "s|^user = .*|user = $DB_USER|" \
-                  -e "s|^password = .*|password = $DB_PASS|" \
-                  -e "s|^name = .*|name = $SEAFILE_DB|" \
-                  -e "s|^jwt_private_key = .*|jwt_private_key = $JWT_KEY|" \
-                  "$CONF/seafile.conf"
+                patch_ini "$CONF/seafile.conf" "database" "host" "$DB_HOST"
+                patch_ini "$CONF/seafile.conf" "database" "port" "$DB_PORT"
+                patch_ini "$CONF/seafile.conf" "database" "user" "$DB_USER"
+                patch_ini "$CONF/seafile.conf" "database" "password" "$DB_PASS"
+                patch_ini "$CONF/seafile.conf" "database" "db_name" "$SEAFILE_DB"
+                patch_ini "$CONF/seafile.conf" "notification" "jwt_private_key" "$JWT_KEY"
                 echo "Patched seafile.conf"
               fi
 
               # seafevents.conf: [DATABASE] section
               if [ -f "$CONF/seafevents.conf" ]; then
-                sed -i \
-                  -e "s|^host = .*|host = $DB_HOST|" \
-                  -e "s|^port = .*|port = $DB_PORT|" \
-                  -e "s|^username = .*|username = $DB_USER|" \
-                  -e "s|^password = .*|password = $DB_PASS|" \
-                  -e "s|^name = .*|name = $SEAHUB_DB|" \
-                  "$CONF/seafevents.conf"
+                patch_ini "$CONF/seafevents.conf" "DATABASE" "host" "$DB_HOST"
+                patch_ini "$CONF/seafevents.conf" "DATABASE" "port" "$DB_PORT"
+                patch_ini "$CONF/seafevents.conf" "DATABASE" "username" "$DB_USER"
+                patch_ini "$CONF/seafevents.conf" "DATABASE" "password" "$DB_PASS"
+                patch_ini "$CONF/seafevents.conf" "DATABASE" "name" "$SEAHUB_DB"
                 echo "Patched seafevents.conf"
               fi
           volumeMounts:
