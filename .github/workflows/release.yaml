@@ -25,7 +25,13 @@ jobs:
 
       - name: Extract version
         id: meta
-        run: echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+          else
+            VERSION=$(grep '^version:' Chart.yaml | sed 's/version: *"\(.*\)"/\1/')
+            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Package chart
         run: helm package .
