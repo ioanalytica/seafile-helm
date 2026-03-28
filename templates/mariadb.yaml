@@ -1,0 +1,117 @@
+{{- if eq .Values.seafile.database.mode "internal" }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "seafile.fullname" . }}-mariadb-init
+  labels:
+    {{- include "seafile.labels" . | nindent 4 }}
+data:
+  init-databases.sql: |
+    CREATE DATABASE IF NOT EXISTS {{ .Values.seafile.database.ccnetDbName }} CHARACTER SET utf8mb4;
+    CREATE DATABASE IF NOT EXISTS {{ .Values.seafile.database.seafileDbName }} CHARACTER SET utf8mb4;
+    CREATE DATABASE IF NOT EXISTS {{ .Values.seafile.database.seahubDbName }} CHARACTER SET utf8mb4;
+    GRANT ALL ON `{{ .Values.seafile.database.ccnetDbName }}`.* TO '{{ .Values.seafile.database.user }}'@'%';
+    GRANT ALL ON `{{ .Values.seafile.database.seafileDbName }}`.* TO '{{ .Values.seafile.database.user }}'@'%';
+    GRANT ALL ON `{{ .Values.seafile.database.seahubDbName }}`.* TO '{{ .Values.seafile.database.user }}'@'%';
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "seafile.fullname" . }}-mariadb-data
+  labels:
+    {{- include "seafile.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- if .Values.seafile.database.internal.storageClassName }}
+  storageClassName: {{ .Values.seafile.database.internal.storageClassName | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.seafile.database.internal.storageSize }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "seafile.fullname" . }}-mariadb
+  labels:
+    {{- include "seafile.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: {{ include "seafile.name" . }}-mariadb
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: mysql
+      protocol: TCP
+      port: 3306
+      targetPort: mysql
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "seafile.fullname" . }}-mariadb
+  labels:
+    {{- include "seafile.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "seafile.name" . }}-mariadb
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "seafile.name" . }}-mariadb
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      {{- with .Values.seafile.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.seafile.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.seafile.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: mariadb
+          image: {{ .Values.seafile.database.internal.image }}
+          env:
+            - name: MARIADB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "seafile.secretName" . }}
+                  key: INIT_SEAFILE_MYSQL_ROOT_PASSWORD
+            - name: MARIADB_USER
+              value: {{ .Values.seafile.database.user | quote }}
+            - name: MARIADB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "seafile.secretName" . }}
+                  key: SEAFILE_MYSQL_DB_PASSWORD
+          ports:
+            - name: mysql
+              containerPort: 3306
+              protocol: TCP
+          volumeMounts:
+            - name: mariadb-data
+              mountPath: /var/lib/mysql
+            - name: init-scripts
+              mountPath: /docker-entrypoint-initdb.d
+          {{- with .Values.seafile.database.internal.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: mariadb-data
+          persistentVolumeClaim:
+            claimName: {{ include "seafile.fullname" . }}-mariadb-data
+        - name: init-scripts
+          configMap:
+            name: {{ include "seafile.fullname" . }}-mariadb-init
+{{- end }}

@@ -10,17 +10,17 @@ data:
   {{- if not .Values.seafile.server.hostname }}
     {{- fail "seafile.server.hostname is required" }}
   {{- end }}
-  {{- if not .Values.seafile.database.host }}
-    {{- fail "seafile.database.host is required" }}
+  {{- if and (eq .Values.seafile.database.mode "external") (not .Values.seafile.database.host) }}
+    {{- fail "seafile.database.host is required when database.mode is external" }}
   {{- end }}
   {{- if and .Values.seafile.initMode (not .Values.seafile.admin.email) }}
     {{- fail "seafile.admin.email is required when initMode is true" }}
   {{- end }}
-  {{- if and (eq .Values.seafile.cache.provider "redis") (not .Values.seafile.cache.redis.host) }}
-    {{- fail "seafile.cache.redis.host is required when cache.provider is redis" }}
+  {{- if and (eq .Values.seafile.cache.mode "external") (eq .Values.seafile.cache.provider "redis") (not .Values.seafile.cache.redis.host) }}
+    {{- fail "seafile.cache.redis.host is required when cache.mode is external and cache.provider is redis" }}
   {{- end }}
-  {{- if and (eq .Values.seafile.cache.provider "memcached") (not .Values.seafile.cache.memcached.host) }}
-    {{- fail "seafile.cache.memcached.host is required when cache.provider is memcached" }}
+  {{- if and (eq .Values.seafile.cache.mode "external") (eq .Values.seafile.cache.provider "memcached") (not .Values.seafile.cache.memcached.host) }}
+    {{- fail "seafile.cache.memcached.host is required when cache.mode is external and cache.provider is memcached" }}
   {{- end }}
   {{- if and (eq .Values.seafile.edition "pro") (eq .Values.seafile.storage.type "s3") }}
     {{- if or (not .Values.seafile.storage.s3.commitBucket) (not .Values.seafile.storage.s3.fsBucket) (not .Values.seafile.storage.s3.blockBucket) (not .Values.seafile.storage.s3.keyId) }}
@@ -36,6 +36,12 @@ data:
   {{- if and .Values.seafile.ai.enabled (not .Values.seafile.ai.url) }}
     {{- fail "seafile.ai.url is required when ai.enabled is true" }}
   {{- end }}
+  {{- if and .Values.seafile.elasticsearch.enabled (eq .Values.seafile.elasticsearch.mode "external") (not .Values.seafile.elasticsearch.host) }}
+    {{- fail "seafile.elasticsearch.host is required when elasticsearch.enabled is true and mode is external" }}
+  {{- end }}
+  {{- if and .Values.seafile.cluster.enabled (not .Values.seafile.elasticsearch.enabled) }}
+    {{- fail "seafile.elasticsearch.enabled must be true when cluster.enabled is true" }}
+  {{- end }}
 
   {{/* ---- Server ---- */}}
   SEAFILE_SERVER_HOSTNAME: {{ .Values.seafile.server.hostname | quote }}
@@ -50,23 +56,30 @@ data:
   {{- end }}
 
   {{/* ---- Database ---- */}}
-  SEAFILE_MYSQL_DB_HOST: {{ .Values.seafile.database.host | quote }}
-  SEAFILE_MYSQL_DB_PORT: {{ .Values.seafile.database.port | quote }}
+  SEAFILE_MYSQL_DB_HOST: {{ include "seafile.database.host" . | quote }}
+  SEAFILE_MYSQL_DB_PORT: {{ include "seafile.database.port" . | quote }}
   SEAFILE_MYSQL_DB_USER: {{ .Values.seafile.database.user | quote }}
   SEAFILE_MYSQL_DB_CCNET_DB_NAME: {{ .Values.seafile.database.ccnetDbName | quote }}
   SEAFILE_MYSQL_DB_SEAFILE_DB_NAME: {{ .Values.seafile.database.seafileDbName | quote }}
   SEAFILE_MYSQL_DB_SEAHUB_DB_NAME: {{ .Values.seafile.database.seahubDbName | quote }}
 
   {{/* ---- Cache ---- */}}
-  CACHE_PROVIDER: {{ .Values.seafile.cache.provider | quote }}
-  {{- if eq .Values.seafile.cache.provider "redis" }}
-  REDIS_HOST: {{ .Values.seafile.cache.redis.host | quote }}
-  REDIS_PORT: {{ .Values.seafile.cache.redis.port | quote }}
+  {{- if eq .Values.seafile.cache.mode "internal" }}
+  CACHE_PROVIDER: "redis"
+  REDIS_HOST: {{ include "seafile.cache.host" . | quote }}
+  REDIS_PORT: {{ include "seafile.cache.port" . | quote }}
+  MEMCACHED_HOST: ""
+  MEMCACHED_PORT: ""
+  {{- else if eq .Values.seafile.cache.provider "redis" }}
+  CACHE_PROVIDER: "redis"
+  REDIS_HOST: {{ include "seafile.cache.host" . | quote }}
+  REDIS_PORT: {{ include "seafile.cache.port" . | quote }}
   MEMCACHED_HOST: ""
   MEMCACHED_PORT: ""
   {{- else if eq .Values.seafile.cache.provider "memcached" }}
-  MEMCACHED_HOST: {{ .Values.seafile.cache.memcached.host | quote }}
-  MEMCACHED_PORT: {{ .Values.seafile.cache.memcached.port | quote }}
+  CACHE_PROVIDER: "memcached"
+  MEMCACHED_HOST: {{ include "seafile.cache.host" . | quote }}
+  MEMCACHED_PORT: {{ include "seafile.cache.port" . | quote }}
   REDIS_HOST: ""
   REDIS_PORT: ""
   {{- end }}
@@ -108,3 +121,9 @@ data:
 
   {{/* ---- Metadata ---- */}}
   MD_FILE_COUNT_LIMIT: {{ .Values.seafile.metadata.fileCountLimit | quote }}
+
+  {{/* ---- Elasticsearch ---- */}}
+  {{- if .Values.seafile.elasticsearch.enabled }}
+  CLUSTER_INIT_ES_HOST: {{ include "seafile.elasticsearch.host" . | quote }}
+  CLUSTER_INIT_ES_PORT: {{ include "seafile.elasticsearch.port" . | quote }}
+  {{- end }}

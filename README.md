@@ -196,7 +196,7 @@ spec:
   chart:
     spec:
       chart: seafile
-      version: "13.0.19-8"
+      version: "13.0.19-9"
       sourceRef:
         kind: HelmRepository
         name: ioanalytica-public
@@ -539,6 +539,52 @@ seafile:
 | `seafile.seahub.ldap.configMapKey` | Key within the ConfigMap | `"ldap_settings.py"` |
 | `seafile.seahub.ldap.adminPassword` | LDAP admin password (use `existingSecret` for production) | `""` |
 | `seafile.seahub.rawConfig` | Raw Python to append to seahub_settings.py | `""` |
+
+### Cluster
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `seafile.cluster.enabled` | Enable cluster mode (frontend/backend split) | `false` |
+| `seafile.cluster.frontend.replicas` | Number of frontend replicas (0 during init) | `2` |
+| `seafile.cluster.elasticsearch.host` | **Required when cluster enabled.** Elasticsearch host | `""` |
+| `seafile.cluster.elasticsearch.port` | Elasticsearch port | `9200` |
+
+## Cluster Mode
+
+Cluster mode splits Seafile into two deployments:
+
+- **Backend** (1 replica) — handles background tasks: email notifications, maintenance jobs, search indexing. Always a single instance.
+- **Frontend** (scalable) — serves the web UI via Seahub. Can be scaled horizontally for HA.
+
+### Requirements
+
+- Elasticsearch instance (for search indexing)
+- `ReadWriteMany` PVC (the chart forces this automatically when cluster is enabled)
+- Pro edition recommended (CE works but has limited cluster features)
+
+### Init Workflow
+
+1. Deploy with `initMode: true` — only the backend pod starts (frontend replicas = 0)
+2. Wait for initialization to complete
+3. Set `initMode: false` and upgrade — frontend pods scale up to the configured replica count
+
+```yaml
+seafile:
+  edition: "pro"
+  initMode: false
+
+  cluster:
+    enabled: true
+    frontend:
+      replicas: 3
+    elasticsearch:
+      host: "elasticsearch.seafile.svc"
+      port: 9200
+```
+
+### Architecture
+
+The service routes traffic exclusively to frontend pods. The backend deployment has no exposed ports — it communicates internally with the database, cache, and Elasticsearch.
 
 ## Examples
 

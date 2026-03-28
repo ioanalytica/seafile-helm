@@ -1,33 +1,20 @@
+{{- if .Values.seafile.cluster.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  {{- if .Values.seafile.cluster.enabled }}
-  name: {{ include "seafile.fullname" . }}-backend
-  {{- else }}
-  name: {{ include "seafile.fullname" . }}
-  {{- end }}
+  name: {{ include "seafile.fullname" . }}-frontend
   labels:
     {{- include "seafile.labels" . | nindent 4 }}
-    {{- if .Values.seafile.cluster.enabled }}
-    app.kubernetes.io/component: backend
-    {{- end }}
+    app.kubernetes.io/component: frontend
 spec:
-  replicas: 1
+  replicas: {{ include "seafile.cluster.frontendReplicas" . }}
   selector:
     matchLabels:
-      {{- if .Values.seafile.cluster.enabled }}
-      {{- include "seafile.backendSelectorLabels" . | nindent 6 }}
-      {{- else }}
-      {{- include "seafile.selectorLabels" . | nindent 6 }}
-      {{- end }}
+      {{- include "seafile.frontendSelectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- if .Values.seafile.cluster.enabled }}
-        {{- include "seafile.backendSelectorLabels" . | nindent 8 }}
-        {{- else }}
-        {{- include "seafile.selectorLabels" . | nindent 8 }}
-        {{- end }}
+        {{- include "seafile.frontendSelectorLabels" . | nindent 8 }}
       annotations:
         kubectl.kubernetes.io/default-container: "seafile"
     spec:
@@ -87,11 +74,6 @@ spec:
               chmod 700 "$CONF/seahub_settings.py"
 
               # --- Patch existing config files (after initial setup) ---
-              # Only patch if files exist (created by Seafile's init process)
-              # Uses section-aware awk to only replace keys within the target section
-
-              # patch_ini FILE SECTION KEY VALUE
-              # Replaces KEY = ... only within [SECTION], leaves other sections untouched
               patch_ini() {
                 _file="$1" _section="$2" _key="$3" _value="$4"
                 awk -v section="$_section" -v key="$_key" -v val="$_value" '
@@ -101,7 +83,6 @@ spec:
                 ' "$_file" > "$_file.tmp" && mv "$_file.tmp" "$_file"
               }
 
-              # ccnet.conf: [Database] section
               if [ -f "$CONF/ccnet.conf" ]; then
                 patch_ini "$CONF/ccnet.conf" "Database" "HOST" "$DB_HOST"
                 patch_ini "$CONF/ccnet.conf" "Database" "PORT" "$DB_PORT"
@@ -111,7 +92,6 @@ spec:
                 echo "Patched ccnet.conf"
               fi
 
-              # seafile.conf: [database] section + [notification] jwt_private_key
               if [ -f "$CONF/seafile.conf" ]; then
                 patch_ini "$CONF/seafile.conf" "database" "host" "$DB_HOST"
                 patch_ini "$CONF/seafile.conf" "database" "port" "$DB_PORT"
@@ -122,7 +102,6 @@ spec:
                 echo "Patched seafile.conf"
               fi
 
-              # seafevents.conf: [DATABASE] section
               if [ -f "$CONF/seafevents.conf" ]; then
                 patch_ini "$CONF/seafevents.conf" "DATABASE" "host" "$DB_HOST"
                 patch_ini "$CONF/seafevents.conf" "DATABASE" "port" "$DB_PORT"
@@ -141,14 +120,6 @@ spec:
               mountPath: /ldap-config
             {{- end }}
         {{- end }}
-        {{- if and .Values.seafile.initMode .Values.seafile.persistence.enabled }}
-        - name: set-ownership
-          image: busybox
-          command: ['sh', '-c', 'chown -R root:root /shared']
-          volumeMounts:
-            - name: seafile-data
-              mountPath: /shared
-        {{- end }}
       containers:
         - name: seafile
           image: {{ include "seafile.image" . }}
@@ -166,14 +137,12 @@ spec:
                 secretKeyRef:
                   name: {{ include "seafile.secretName" . }}
                   key: JWT_PRIVATE_KEY
-            {{- if .Values.seafile.cluster.enabled }}
             - name: CLUSTER_INIT_MODE
               value: {{ .Values.seafile.initMode | quote }}
             - name: CLUSTER_SERVER
               value: "true"
             - name: CLUSTER_MODE
-              value: "backend"
-            {{- end }}
+              value: "frontend"
             {{- if and (eq .Values.seafile.cache.provider "redis") .Values.seafile.cache.redis.existingSecret }}
             - name: REDIS_PASSWORD
               valueFrom:
@@ -195,12 +164,10 @@ spec:
                   name: {{ include "seafile.secretName" . }}
                   key: LDAP_ADMIN_PASSWORD
             {{- end }}
-          {{- if not .Values.seafile.cluster.enabled }}
           ports:
             - name: http
               containerPort: 80
               protocol: TCP
-          {{- end }}
           volumeMounts:
             {{- if .Values.seafile.persistence.enabled }}
             - name: seafile-data
@@ -250,3 +217,4 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       restartPolicy: Always
+{{- end }}

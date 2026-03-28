@@ -7,7 +7,7 @@ metadata:
     {{- include "seafile.labels" . | nindent 4 }}
 spec:
   accessModes:
-    - {{ .Values.seafile.persistence.accessMode }}
+    - {{ include "seafile.persistence.accessMode" . }}
   {{- if .Values.seafile.persistence.storageClassName }}
   storageClassName: {{ .Values.seafile.persistence.storageClassName | quote }}
   {{- end }}

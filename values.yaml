@@ -118,33 +118,49 @@ seafile:
     password: ""              # secret - use existingSecret for production
 
   # Database
+  # mode: "internal" deploys a MariaDB instance within the chart.
+  # mode: "external" requires host to be set.
   # For production, set passwords via existingSecret instead of here.
   database:
-    host: ""                  # required - e.g. mariadb.seafile.svc
+    mode: "external"          # "internal" or "external"
+    host: ""                  # required when mode is external
     port: 3306
     user: "seafile"
     password: ""              # secret - use existingSecret for production
-    rootPassword: ""          # secret - used during init only
+    rootPassword: ""          # secret - used during init and internal mode
     ccnetDbName: "ccnet_db"
     seafileDbName: "seafile_db"
     seahubDbName: "seahub_db"
+    internal:
+      image: "mariadb:10.11"
+      storageSize: "10Gi"
+      storageClassName: ""
+      resources: {}
 
   # Cache
+  # mode: "internal" deploys a Redis instance within the chart.
+  # mode: "external" requires the provider's host to be set.
   # For production, use existingSecret per provider instead of password here.
   cache:
+    mode: "external"          # "internal" or "external"
     provider: "redis"         # "redis" or "memcached"
     redis:
-      host: ""                # required when provider is redis
+      host: ""                # required when mode is external and provider is redis
       port: 6379
       password: ""            # use existingSecret for production
       existingSecret: ""      # e.g. redis-credentials
       existingSecretKey: "redis-password"  # key within the existing secret
     memcached:
-      host: ""                # required when provider is memcached
+      host: ""                # required when mode is external and provider is memcached
       port: 11211
       password: ""            # use existingSecret for production
       existingSecret: ""
       existingSecretKey: "memcached-password"
+    internal:
+      image: "redis:7-alpine"
+      storageSize: "1Gi"
+      storageClassName: ""
+      resources: {}
 
   # Object storage (pro edition only)
   storage:
@@ -226,3 +242,41 @@ seafile:
     #     ENABLE_SIGNUP = False
     #     LOGIN_REMEMBER_DAYS = 7
     rawConfig: ""
+
+  # Elasticsearch - for full-text file search indexing
+  # Required for cluster mode, optional otherwise.
+  # mode: "internal" deploys a single-node ES instance within the chart.
+  # mode: "external" requires host to be set.
+  # Set to disabled (default) when not needed.
+  elasticsearch:
+    enabled: false
+    mode: "external"        # "internal" or "external"
+    host: ""                # required when mode is external
+    port: 9200
+    # External ES with authentication: credentials are passed as env vars
+    # and must be configured in seafevents.conf [INDEX FILES] section.
+    # Use seahub.rawConfig or patch seafevents.conf accordingly.
+    username: ""            # optional
+    password: ""            # optional - use existingSecret for production
+    internal:
+      image: "elasticsearch:8.15.0"
+      javaOpts: "-Xms512m -Xmx512m"
+      storageSize: "5Gi"
+      storageClassName: ""
+      resources:
+        requests:
+          memory: 1Gi
+          cpu: 500m
+
+  # ---------------------------------------------------------------------------
+  # Cluster Mode
+  # ---------------------------------------------------------------------------
+  # Splits the deployment into frontend (web UI, scalable) and backend
+  # (background tasks: mail, maintenance, indexing — single instance).
+  # The backend being single-instance is by design — it handles non-request
+  # tasks that do not affect availability.
+  # Requires elasticsearch.enabled and a ReadWriteMany PVC.
+  cluster:
+    enabled: false
+    frontend:
+      replicas: 2           # number of frontend replicas (0 during init)

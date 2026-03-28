@@ -10,7 +10,11 @@ spec:
   loadBalancerIP: {{ .Values.seafile.service.loadBalancerIP }}
   {{- end }}
   selector:
+    {{- if .Values.seafile.cluster.enabled }}
+    {{- include "seafile.frontendSelectorLabels" . | nindent 4 }}
+    {{- else }}
     {{- include "seafile.selectorLabels" . | nindent 4 }}
+    {{- end }}
   ports:
     - name: http
       protocol: TCP

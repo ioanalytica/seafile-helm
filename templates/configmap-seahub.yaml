@@ -21,18 +21,18 @@ data:
             'NAME': {{ .Values.seafile.database.seahubDbName | squote }},
             'USER': {{ .Values.seafile.database.user | squote }},
             'PASSWORD': os.environ.get('SEAFILE_MYSQL_DB_PASSWORD', ''),
-            'HOST': {{ .Values.seafile.database.host | squote }},
-            'PORT': {{ .Values.seafile.database.port | squote }},
+            'HOST': {{ include "seafile.database.host" . | squote }},
+            'PORT': {{ include "seafile.database.port" . | squote }},
             'OPTIONS': {'charset': 'utf8mb4'},
         }
     }
 
-    {{- if eq .Values.seafile.cache.provider "redis" }}
+    {{- if or (eq .Values.seafile.cache.mode "internal") (eq .Values.seafile.cache.provider "redis") }}
 
     CACHES = {
         'default': {
             'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-            'LOCATION': 'redis://:' + os.environ.get('REDIS_PASSWORD', '') + '@{{ .Values.seafile.cache.redis.host }}:{{ .Values.seafile.cache.redis.port }}/0',
+            'LOCATION': 'redis://:' + os.environ.get('REDIS_PASSWORD', '') + '@{{ include "seafile.cache.host" . }}:{{ include "seafile.cache.port" . }}/0',
         }
     }
     {{- else if eq .Values.seafile.cache.provider "memcached" }}
@@ -40,7 +40,7 @@ data:
     CACHES = {
         'default': {
             'BACKEND': 'django.core.cache.backends.memcached.PyMemcacheCache',
-            'LOCATION': '{{ .Values.seafile.cache.memcached.host }}:{{ .Values.seafile.cache.memcached.port }}',
+            'LOCATION': '{{ include "seafile.cache.host" . }}:{{ include "seafile.cache.port" . }}',
         }
     }
     {{- end }}

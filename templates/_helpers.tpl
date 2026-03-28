@@ -64,3 +64,113 @@ Return the secret name
 {{- include "seafile.fullname" . }}-secret
 {{- end }}
 {{- end }}
+
+{{/*
+Cluster: frontend selector labels
+*/}}
+{{- define "seafile.frontendSelectorLabels" -}}
+app.kubernetes.io/name: {{ include "seafile.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: frontend
+{{- end }}
+
+{{/*
+Cluster: backend selector labels
+*/}}
+{{- define "seafile.backendSelectorLabels" -}}
+app.kubernetes.io/name: {{ include "seafile.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: backend
+{{- end }}
+
+{{/*
+Cluster: frontend replica count (0 during init, configured value after)
+*/}}
+{{- define "seafile.cluster.frontendReplicas" -}}
+{{- if .Values.seafile.initMode -}}
+0
+{{- else -}}
+{{- .Values.seafile.cluster.frontend.replicas | default 2 -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+PVC access mode: forced to ReadWriteMany in cluster mode
+*/}}
+{{- define "seafile.persistence.accessMode" -}}
+{{- if .Values.seafile.cluster.enabled -}}
+ReadWriteMany
+{{- else -}}
+{{- .Values.seafile.persistence.accessMode -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+Database host: internal service name or user-provided
+*/}}
+{{- define "seafile.database.host" -}}
+{{- if eq .Values.seafile.database.mode "internal" -}}
+{{- include "seafile.fullname" . }}-mariadb
+{{- else -}}
+{{- .Values.seafile.database.host -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+Database port
+*/}}
+{{- define "seafile.database.port" -}}
+{{- if eq .Values.seafile.database.mode "internal" -}}
+3306
+{{- else -}}
+{{- .Values.seafile.database.port -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+Cache host: internal service name or user-provided
+*/}}
+{{- define "seafile.cache.host" -}}
+{{- if eq .Values.seafile.cache.mode "internal" -}}
+{{- include "seafile.fullname" . }}-redis
+{{- else if eq .Values.seafile.cache.provider "redis" -}}
+{{- .Values.seafile.cache.redis.host -}}
+{{- else -}}
+{{- .Values.seafile.cache.memcached.host -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+Cache port
+*/}}
+{{- define "seafile.cache.port" -}}
+{{- if eq .Values.seafile.cache.mode "internal" -}}
+6379
+{{- else if eq .Values.seafile.cache.provider "redis" -}}
+{{- .Values.seafile.cache.redis.port -}}
+{{- else -}}
+{{- .Values.seafile.cache.memcached.port -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+Elasticsearch host: internal service name or user-provided
+*/}}
+{{- define "seafile.elasticsearch.host" -}}
+{{- if eq .Values.seafile.elasticsearch.mode "internal" -}}
+{{- include "seafile.fullname" . }}-elasticsearch
+{{- else -}}
+{{- .Values.seafile.elasticsearch.host -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+Elasticsearch port
+*/}}
+{{- define "seafile.elasticsearch.port" -}}
+{{- if eq .Values.seafile.elasticsearch.mode "internal" -}}
+9200
+{{- else -}}
+{{- .Values.seafile.elasticsearch.port -}}
+{{- end -}}
+{{- end }}
