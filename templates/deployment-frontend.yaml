@@ -113,7 +113,33 @@ spec:
                 ' "$_file" > "$_file.tmp" && mv "$_file.tmp" "$_file"
               }
 
-              if [ -f "$CONF/ccnet.conf" ]; then
+              # ensure_ini FILE SECTION KEY=VALUE ...
+              # Adds [SECTION] with key = value lines if the section is missing
+              ensure_ini() {
+                _file="$1" _section="$2"; shift 2
+                if ! grep -q "^\[$_section\]" "$_file"; then
+                  printf '\n[%s]\n' "$_section" >> "$_file"
+                  for _kv in "$@"; do
+                    printf '%s\n' "$_kv" >> "$_file"
+                  done
+                  echo "Added missing [$_section] to $_file"
+                fi
+              }
+
+              # --- ccnet.conf: generate from template if missing/empty, or patch ---
+              if [ ! -s "$CONF/ccnet.conf" ]; then
+                sed "s/__SEAFILE_MYSQL_DB_PASSWORD__/$DB_PASS/g" \
+                  /ccnet-config/ccnet.conf > "$CONF/ccnet.conf"
+                echo "Generated ccnet.conf from template"
+              else
+                ensure_ini "$CONF/ccnet.conf" "Database" \
+                  "ENGINE = mysql" \
+                  "HOST = $DB_HOST" \
+                  "PORT = $DB_PORT" \
+                  "USER = $DB_USER" \
+                  "PASSWD = $DB_PASS" \
+                  "DB = $CCNET_DB" \
+                  "CONNECTION_CHARSET = utf8"
                 patch_ini "$CONF/ccnet.conf" "Database" "HOST" "$DB_HOST"
                 patch_ini "$CONF/ccnet.conf" "Database" "PORT" "$DB_PORT"
                 patch_ini "$CONF/ccnet.conf" "Database" "USER" "$DB_USER"
@@ -122,7 +148,26 @@ spec:
                 echo "Patched ccnet.conf"
               fi
 
-              if [ -f "$CONF/seafile.conf" ]; then
+              # --- seafile.conf: generate from template if missing/empty, or patch ---
+              if [ ! -s "$CONF/seafile.conf" ]; then
+                sed "s/__SEAFILE_MYSQL_DB_PASSWORD__/$DB_PASS/g;s/__JWT_PRIVATE_KEY__/$JWT_KEY/g" \
+                  /seafile-conf-config/seafile.conf > "$CONF/seafile.conf"
+                echo "Generated seafile.conf from template"
+              else
+                ensure_ini "$CONF/seafile.conf" "database" \
+                  "type = mysql" \
+                  "host = $DB_HOST" \
+                  "port = $DB_PORT" \
+                  "user = $DB_USER" \
+                  "password = $DB_PASS" \
+                  "db_name = $SEAFILE_DB" \
+                  "connection_charset = utf8"
+                ensure_ini "$CONF/seafile.conf" "notification" \
+                  "enabled = {{ if .Values.seafile.notification.enabled }}true{{ else }}false{{ end }}" \
+                  "host = 127.0.0.1" \
+                  "port = 8083" \
+                  "log_level = info" \
+                  "jwt_private_key = $JWT_KEY"
                 patch_ini "$CONF/seafile.conf" "database" "host" "$DB_HOST"
                 patch_ini "$CONF/seafile.conf" "database" "port" "$DB_PORT"
                 patch_ini "$CONF/seafile.conf" "database" "user" "$DB_USER"
@@ -132,11 +177,19 @@ spec:
                 echo "Patched seafile.conf"
               fi
 
+              # --- seafevents.conf: generate from template if missing/empty, or patch ---
               if [ ! -s "$CONF/seafevents.conf" ]; then
                 sed "s/__SEAFILE_MYSQL_DB_PASSWORD__/$DB_PASS/g;s/__ES_PASSWORD__/${ES_PASSWORD:-}/g" \
                   /seafevents-config/seafevents.conf > "$CONF/seafevents.conf"
                 echo "Generated seafevents.conf from template"
               else
+                ensure_ini "$CONF/seafevents.conf" "DATABASE" \
+                  "type = mysql" \
+                  "host = $DB_HOST" \
+                  "port = $DB_PORT" \
+                  "username = $DB_USER" \
+                  "password = $DB_PASS" \
+                  "name = $SEAHUB_DB"
                 patch_ini "$CONF/seafevents.conf" "DATABASE" "host" "$DB_HOST"
                 patch_ini "$CONF/seafevents.conf" "DATABASE" "port" "$DB_PORT"
                 patch_ini "$CONF/seafevents.conf" "DATABASE" "username" "$DB_USER"
@@ -159,6 +212,10 @@ spec:
               mountPath: /shared
             - name: seahub-config
               mountPath: /seahub-config
+            - name: ccnet-config
+              mountPath: /ccnet-config
+            - name: seafile-conf-config
+              mountPath: /seafile-conf-config
             - name: seafevents-config
               mountPath: /seafevents-config
             {{- if and (eq .Values.seafile.edition "pro") .Values.seafile.seahub.ldap.enabled .Values.seafile.seahub.ldap.configMap }}
@@ -240,6 +297,12 @@ spec:
         - name: seahub-config
           configMap:
             name: {{ include "seafile.fullname" . }}-seahub
+        - name: ccnet-config
+          configMap:
+            name: {{ include "seafile.fullname" . }}-ccnet
+        - name: seafile-conf-config
+          configMap:
+            name: {{ include "seafile.fullname" . }}-seafile-conf
         - name: seafevents-config
           configMap:
             name: {{ include "seafile.fullname" . }}-seafevents
