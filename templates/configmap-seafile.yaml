@@ -18,6 +18,12 @@ data:
     db_name = {{ .Values.seafile.database.seafileDbName }}
     connection_charset = utf8
 
+    {{- if .Values.seafile.cluster.enabled }}
+
+    [cluster]
+    enable = true
+    {{- end }}
+
     [notification]
     enabled = {{ if .Values.seafile.notification.enabled }}true{{ else }}false{{ end }}
     host = 127.0.0.1

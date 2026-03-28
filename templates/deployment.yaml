@@ -172,6 +172,10 @@ spec:
                   /seafile-conf-config/seafile.conf > "$CONF/seafile.conf"
                 echo "Generated seafile.conf from template"
               else
+                {{- if .Values.seafile.cluster.enabled }}
+                ensure_ini "$CONF/seafile.conf" "cluster" \
+                  "enable = true"
+                {{- end }}
                 ensure_ini "$CONF/seafile.conf" "database" \
                   "type = mysql" \
                   "host = $DB_HOST" \
