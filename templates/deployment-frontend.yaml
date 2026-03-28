@@ -248,14 +248,14 @@ spec:
               value: "true"
             - name: CLUSTER_MODE
               value: "frontend"
-            {{- if and (ne .Values.seafile.cache.mode "internal") (eq .Values.seafile.cache.provider "redis") .Values.seafile.cache.redis.existingSecret }}
+            {{- if and (ne .Values.seafile.cache.mode "internal") .Values.seafile.cache.redis.existingSecret }}
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.seafile.cache.redis.existingSecret }}
                   key: {{ .Values.seafile.cache.redis.existingSecretKey }}
             {{- end }}
-            {{- if and (ne .Values.seafile.cache.mode "internal") (eq .Values.seafile.cache.provider "memcached") .Values.seafile.cache.memcached.existingSecret }}
+            {{- if and (ne .Values.seafile.cache.mode "internal") .Values.seafile.cache.memcached.existingSecret }}
             - name: MEMCACHED_PASSWORD
               valueFrom:
                 secretKeyRef:

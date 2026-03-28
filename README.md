@@ -196,7 +196,7 @@ spec:
   chart:
     spec:
       chart: seafile
-      version: "13.0.19-12"
+      version: "13.0.19-13"
       sourceRef:
         kind: HelmRepository
         name: ioanalytica-public
@@ -488,6 +488,29 @@ seafile:
 | `seafile.cache.memcached.password` | Memcached password | `""` |
 | `seafile.cache.memcached.existingSecret` | Existing secret for Memcached password | `""` |
 | `seafile.cache.memcached.existingSecretKey` | Key in the existing secret | `"memcached-password"` |
+
+### Using Dragonfly as a Unified Cache
+
+Seafile uses both Redis and Memcached protocols internally. Rather than running two separate cache services, you can use [Dragonfly](https://www.dragonflydb.io/) — a modern in-memory store that speaks both protocols on a single instance.
+
+Configure both `redis` and `memcached` sections to point at the same Dragonfly service:
+
+```yaml
+seafile:
+  cache:
+    mode: external
+    provider: "redis"           # seahub CACHES backend
+    redis:
+      host: "dragonfly.seafile.svc"
+      existingSecret: "dragonfly-secret"
+      existingSecretKey: "PASSWORD"
+    memcached:
+      host: "dragonfly.seafile.svc"
+      existingSecret: "dragonfly-secret"
+      existingSecretKey: "PASSWORD"
+```
+
+The chart always emits both `REDIS_HOST`/`REDIS_PASSWORD` and `MEMCACHED_HOST`/`MEMCACHED_PASSWORD` environment variables, regardless of the `provider` setting. The `provider` only controls which backend `seahub_settings.py` uses for its `CACHES` dict.
 
 ### Storage (Pro edition)
 

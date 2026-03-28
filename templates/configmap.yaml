@@ -64,18 +64,20 @@ data:
   SEAFILE_MYSQL_DB_SEAHUB_DB_NAME: {{ .Values.seafile.database.seahubDbName | quote }}
 
   {{/* ---- Cache ---- */}}
+  {{/* Seafile expects both REDIS and MEMCACHED env vars regardless of provider. */}}
+  {{/* Services like Dragonfly can serve both protocols on the same host. */}}
   {{- if eq .Values.seafile.cache.mode "internal" }}
   CACHE_PROVIDER: "redis"
-  REDIS_HOST: {{ include "seafile.cache.host" . | quote }}
-  REDIS_PORT: {{ include "seafile.cache.port" . | quote }}
-  {{- else if eq .Values.seafile.cache.provider "redis" }}
-  CACHE_PROVIDER: "redis"
-  REDIS_HOST: {{ include "seafile.cache.host" . | quote }}
-  REDIS_PORT: {{ include "seafile.cache.port" . | quote }}
-  {{- else if eq .Values.seafile.cache.provider "memcached" }}
-  CACHE_PROVIDER: "memcached"
-  MEMCACHED_HOST: {{ include "seafile.cache.host" . | quote }}
-  MEMCACHED_PORT: {{ include "seafile.cache.port" . | quote }}
+  REDIS_HOST: {{ include "seafile.fullname" . }}-redis
+  REDIS_PORT: "6379"
+  MEMCACHED_HOST: {{ include "seafile.fullname" . }}-redis
+  MEMCACHED_PORT: "11211"
+  {{- else }}
+  CACHE_PROVIDER: {{ .Values.seafile.cache.provider | quote }}
+  REDIS_HOST: {{ .Values.seafile.cache.redis.host | quote }}
+  REDIS_PORT: {{ .Values.seafile.cache.redis.port | quote }}
+  MEMCACHED_HOST: {{ (.Values.seafile.cache.memcached.host | default .Values.seafile.cache.redis.host) | quote }}
+  MEMCACHED_PORT: {{ .Values.seafile.cache.memcached.port | quote }}
   {{- end }}
 
   {{/* ---- Storage (pro only) ---- */}}
