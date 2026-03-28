@@ -1,0 +1,106 @@
+name: Check Internal Service Images
+
+on:
+  schedule:
+    - cron: "47 7 * * 1"   # weekly on Monday at 07:47 UTC
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check for new image tags
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          # Each entry: "library/IMAGE CURRENT_TAG SERIES_PATTERN LABEL"
+          #   SERIES_PATTERN: regex matching tags in the same release series
+          #   e.g. mariadb 10.11 tracks 10.11.x, redis 7-alpine tracks 7.x-alpine,
+          #   elasticsearch 8.15.0 tracks 8.x.y
+          IMAGES=(
+            "library/mariadb        10.11       ^10\.11\.\d+$           mariadb"
+            "library/redis          7-alpine    ^7\.\d+\.\d+-alpine$    redis"
+            "library/elasticsearch  8.15.0      ^8\.\d+\.\d+$           elasticsearch"
+          )
+
+          for ENTRY in "${IMAGES[@]}"; do
+            read -r REPO CURRENT PATTERN LABEL <<< "$ENTRY"
+            echo "=== Checking ${REPO} (current: ${CURRENT}) ==="
+
+            LATEST=$(curl -s "https://hub.docker.com/v2/repositories/${REPO}/tags/?page_size=100&ordering=last_updated" \
+              | python3 -c "
+          import sys, json, re
+          data = json.load(sys.stdin)
+          pattern = re.compile(r'${PATTERN}')
+          tags = [r['name'] for r in data['results'] if pattern.match(r['name'])]
+
+          def sort_key(tag):
+              # Extract numeric parts for sorting (strip non-numeric suffixes like -alpine)
+              import re as _re
+              nums = _re.findall(r'\d+', tag)
+              return list(map(int, nums))
+
+          tags.sort(key=sort_key, reverse=True)
+          print(tags[0] if tags else '')
+          ")
+
+            echo "Latest: ${LATEST:-none}"
+
+            if [ -z "$LATEST" ] || [ "$LATEST" = "$CURRENT" ]; then
+              echo "Up to date."
+              continue
+            fi
+
+            # Compare numeric parts to determine if newer
+            NEWER=$(python3 -c "
+          import re
+          def nums(tag):
+              return list(map(int, re.findall(r'\d+', tag)))
+          print('yes' if nums('${LATEST}') > nums('${CURRENT}') else 'no')
+          ")
+
+            if [ "$NEWER" != "yes" ]; then
+              echo "Not newer, skipping."
+              continue
+            fi
+
+            # Short name for the image (e.g. "mariadb", "redis", "elasticsearch")
+            SHORT=${REPO#library/}
+            TITLE="New ${SHORT} image: ${LATEST} (current: ${CURRENT})"
+
+            EXISTING=$(gh issue list --search "\"${TITLE}\" in:title" --state open --json number --jq length)
+            if [ "$EXISTING" != "0" ]; then
+              echo "Issue already exists: ${TITLE}"
+              continue
+            fi
+
+            gh issue create \
+              --title "$TITLE" \
+              --label "dependency-update" \
+              --body "$(cat <<EOF
+          A newer \`${SHORT}\` image tag has been detected on Docker Hub.
+
+          | | Version |
+          |---|---|
+          | **Current (values.yaml)** | \`${CURRENT}\` |
+          | **Latest upstream** | \`${LATEST}\` |
+          | **Image** | \`${SHORT}:${LATEST}\` |
+          | **Values key** | \`seafile.${LABEL}.internal.image\` |
+
+          ### Steps
+          1. Update the default image in \`values.yaml\`
+          2. Test with \`${LABEL}.mode: internal\`
+          3. Bump chart version and release
+          EOF
+          )"
+            echo "Created issue: ${TITLE}"
+          done
