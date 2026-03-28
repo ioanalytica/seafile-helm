@@ -58,6 +58,7 @@ seafile:
   #   S3_SECRET_KEY                 - when edition is pro and storage.type is s3
   #   S3_SSE_C_KEY                  - when edition is pro and storage.type is s3
   #   LDAP_ADMIN_PASSWORD           - when edition is pro and seahub.ldap.enabled is true
+  #   ES_PASSWORD                   - when elasticsearch.enabled and external with auth
   existingSecret: ""
 
   # Image pull secrets
@@ -253,11 +254,9 @@ seafile:
     mode: "external"        # "internal" or "external"
     host: ""                # required when mode is external
     port: 9200
-    # External ES with authentication: credentials are passed as env vars
-    # and must be configured in seafevents.conf [INDEX FILES] section.
-    # Use seahub.rawConfig or patch seafevents.conf accordingly.
+    # External ES with authentication (not used for internal mode)
     username: ""            # optional
-    password: ""            # optional - use existingSecret for production
+    password: ""            # secret - use existingSecret for production (key: ES_PASSWORD)
     internal:
       image: "elasticsearch:8.15.0"
       javaOpts: "-Xms512m -Xmx512m"
@@ -278,5 +277,11 @@ seafile:
   # Requires elasticsearch.enabled and a ReadWriteMany PVC.
   cluster:
     enabled: false
+    # Set to true on first cluster deployment to initialize ES indices
+    # and cluster config. Defaults to seafile.initMode if not set.
+    # For migrations from single to cluster: set this to true while
+    # keeping seafile.initMode: false (databases exist, but cluster
+    # config needs initialization).
+    initMode: ""            # "" = follow seafile.initMode, "true"/"false" = override
     frontend:
       replicas: 2           # number of frontend replicas (0 during init)

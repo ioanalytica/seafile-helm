@@ -540,14 +540,27 @@ seafile:
 | `seafile.seahub.ldap.adminPassword` | LDAP admin password (use `existingSecret` for production) | `""` |
 | `seafile.seahub.rawConfig` | Raw Python to append to seahub_settings.py | `""` |
 
+### Elasticsearch
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `seafile.elasticsearch.enabled` | Enable Elasticsearch for full-text search | `false` |
+| `seafile.elasticsearch.mode` | `"internal"` or `"external"` | `"external"` |
+| `seafile.elasticsearch.host` | ES host (required when mode is external) | `""` |
+| `seafile.elasticsearch.port` | ES port | `9200` |
+| `seafile.elasticsearch.username` | ES username (external with auth) | `""` |
+| `seafile.elasticsearch.password` | ES password (use `existingSecret` key `ES_PASSWORD`) | `""` |
+| `seafile.elasticsearch.internal.image` | Image for internal ES | `"elasticsearch:8.15.0"` |
+| `seafile.elasticsearch.internal.javaOpts` | JVM options | `"-Xms512m -Xmx512m"` |
+| `seafile.elasticsearch.internal.storageSize` | PVC size | `"5Gi"` |
+
 ### Cluster
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `seafile.cluster.enabled` | Enable cluster mode (frontend/backend split) | `false` |
-| `seafile.cluster.frontend.replicas` | Number of frontend replicas (0 during init) | `2` |
-| `seafile.cluster.elasticsearch.host` | **Required when cluster enabled.** Elasticsearch host | `""` |
-| `seafile.cluster.elasticsearch.port` | Elasticsearch port | `9200` |
+| `seafile.cluster.initMode` | Override cluster init independently of `initMode`. Use `true` when migrating from single to cluster. | `""` (follows `initMode`) |
+| `seafile.cluster.frontend.replicas` | Number of frontend replicas (0 during cluster init) | `2` |
 
 ## Cluster Mode
 
@@ -558,11 +571,11 @@ Cluster mode splits Seafile into two deployments:
 
 ### Requirements
 
-- Elasticsearch instance (for search indexing)
+- Elasticsearch must be enabled (`elasticsearch.enabled: true`)
 - `ReadWriteMany` PVC (the chart forces this automatically when cluster is enabled)
 - Pro edition recommended (CE works but has limited cluster features)
 
-### Init Workflow
+### Init Workflow (Fresh Install)
 
 1. Deploy with `initMode: true` — only the backend pod starts (frontend replicas = 0)
 2. Wait for initialization to complete
@@ -573,18 +586,84 @@ seafile:
   edition: "pro"
   initMode: false
 
+  elasticsearch:
+    enabled: true
+    mode: internal
+
   cluster:
     enabled: true
     frontend:
       replicas: 3
-    elasticsearch:
-      host: "elasticsearch.seafile.svc"
-      port: 9200
 ```
 
 ### Architecture
 
 The service routes traffic exclusively to frontend pods. The backend deployment has no exposed ports — it communicates internally with the database, cache, and Elasticsearch.
+
+### Migrating an Existing Instance to Cluster Mode
+
+If you have an existing single-instance Seafile Pro deployment and want to enable cluster mode:
+
+1. **Prepare a ReadWriteMany PVC.** The chart forces `ReadWriteMany` access mode when cluster is enabled. You cannot change the access mode of an existing PVC in-place. Your options:
+
+   - If your storage class already supports RWX (NFS, CephFS, etc.), create a new PVC with `ReadWriteMany`, copy the data from the old PVC, and update `persistence.existingClaim`.
+   - If you're on block storage (Longhorn RWO, EBS, etc.), you need to migrate to a shared filesystem first.
+   - If using the chart-managed PVC (not `existingClaim`), delete the old PVC and let the chart create a new one with the correct access mode, then restore data from a backup.
+
+2. **Enable Elasticsearch.** Cluster mode requires it. Use internal mode for simplicity:
+
+   ```yaml
+   seafile:
+     elasticsearch:
+       enabled: true
+       mode: internal
+   ```
+
+   The `[INDEX FILES]` section in `seafevents.conf` will be created by Seafile's init process when it detects the Elasticsearch environment variables. If the section already exists, the init container patches `es_host` and `es_port` to match the chart values.
+
+3. **Enable cluster mode with `cluster.initMode: true`** but keep `initMode: false` — your databases exist, but cluster/ES config needs initialization:
+
+   ```yaml
+   seafile:
+     edition: "pro"
+     initMode: false         # databases exist — do NOT re-init
+
+     elasticsearch:
+       enabled: true
+       mode: internal
+
+     cluster:
+       enabled: true
+       initMode: true        # initialize ES indices and cluster config
+       frontend:
+         replicas: 2
+
+     persistence:
+       existingClaim: "my-rwx-seafile-data"
+   ```
+
+   `cluster.initMode` is independent of `initMode`. When set to `true`, it tells Seafile to create Elasticsearch indices and cluster-specific configuration, and keeps frontend replicas at 0 during this phase. When left empty (default), it follows `initMode`.
+
+4. **Deploy.** Only the backend starts (`CLUSTER_INIT_MODE=true`, frontend replicas = 0). The backend initializes ES indices and cluster config.
+
+5. **Set `cluster.initMode: false`** (or remove it) and upgrade — frontend pods scale up:
+
+   ```yaml
+   cluster:
+     enabled: true
+     # initMode removed — defaults to following initMode (false)
+     frontend:
+       replicas: 2
+   ```
+
+6. **Verify** by checking the pod logs:
+
+   ```bash
+   kubectl logs deploy/seafile-backend -c configure -n seafile
+   kubectl logs deploy/seafile-frontend -c configure -n seafile
+   ```
+
+**Important:** Never use `initMode: true` when migrating — it would attempt to re-create databases and overwrite your admin account. Use `cluster.initMode: true` instead for the cluster-specific initialization.
 
 ## Examples
 

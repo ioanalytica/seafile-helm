@@ -84,10 +84,21 @@ app.kubernetes.io/component: backend
 {{- end }}
 
 {{/*
+Cluster init mode: follows seafile.initMode unless overridden
+*/}}
+{{- define "seafile.cluster.initMode" -}}
+{{- if ne (.Values.seafile.cluster.initMode | toString) "" -}}
+{{- .Values.seafile.cluster.initMode -}}
+{{- else -}}
+{{- .Values.seafile.initMode -}}
+{{- end -}}
+{{- end }}
+
+{{/*
 Cluster: frontend replica count (0 during init, configured value after)
 */}}
 {{- define "seafile.cluster.frontendReplicas" -}}
-{{- if .Values.seafile.initMode -}}
+{{- if eq (include "seafile.cluster.initMode" .) "true" -}}
 0
 {{- else -}}
 {{- .Values.seafile.cluster.frontend.replicas | default 2 -}}

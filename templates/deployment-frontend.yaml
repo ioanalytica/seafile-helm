@@ -58,6 +58,23 @@ spec:
                 secretKeyRef:
                   name: {{ include "seafile.secretName" . }}
                   key: JWT_PRIVATE_KEY
+            {{- if .Values.seafile.elasticsearch.enabled }}
+            - name: ES_HOST
+              value: {{ include "seafile.elasticsearch.host" . | quote }}
+            - name: ES_PORT
+              value: {{ include "seafile.elasticsearch.port" . | quote }}
+            {{- if and (ne .Values.seafile.elasticsearch.mode "internal") .Values.seafile.elasticsearch.username }}
+            - name: ES_USERNAME
+              value: {{ .Values.seafile.elasticsearch.username | quote }}
+            {{- end }}
+            {{- if and (ne .Values.seafile.elasticsearch.mode "internal") .Values.seafile.elasticsearch.password }}
+            - name: ES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "seafile.secretName" . }}
+                  key: ES_PASSWORD
+            {{- end }}
+            {{- end }}
           command:
             - sh
             - -c
@@ -108,6 +125,16 @@ spec:
                 patch_ini "$CONF/seafevents.conf" "DATABASE" "username" "$DB_USER"
                 patch_ini "$CONF/seafevents.conf" "DATABASE" "password" "$DB_PASS"
                 patch_ini "$CONF/seafevents.conf" "DATABASE" "name" "$SEAHUB_DB"
+                {{- if .Values.seafile.elasticsearch.enabled }}
+                patch_ini "$CONF/seafevents.conf" "INDEX FILES" "es_host" "$ES_HOST"
+                patch_ini "$CONF/seafevents.conf" "INDEX FILES" "es_port" "$ES_PORT"
+                {{- if and (ne .Values.seafile.elasticsearch.mode "internal") .Values.seafile.elasticsearch.username }}
+                patch_ini "$CONF/seafevents.conf" "INDEX FILES" "username" "$ES_USERNAME"
+                {{- end }}
+                {{- if .Values.seafile.elasticsearch.password }}
+                patch_ini "$CONF/seafevents.conf" "INDEX FILES" "password" "$ES_PASSWORD"
+                {{- end }}
+                {{- end }}
                 echo "Patched seafevents.conf"
               fi
           volumeMounts:
@@ -138,7 +165,7 @@ spec:
                   name: {{ include "seafile.secretName" . }}
                   key: JWT_PRIVATE_KEY
             - name: CLUSTER_INIT_MODE
-              value: {{ .Values.seafile.initMode | quote }}
+              value: {{ include "seafile.cluster.initMode" . | quote }}
             - name: CLUSTER_SERVER
               value: "true"
             - name: CLUSTER_MODE
