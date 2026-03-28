@@ -68,20 +68,14 @@ data:
   CACHE_PROVIDER: "redis"
   REDIS_HOST: {{ include "seafile.cache.host" . | quote }}
   REDIS_PORT: {{ include "seafile.cache.port" . | quote }}
-  MEMCACHED_HOST: ""
-  MEMCACHED_PORT: ""
   {{- else if eq .Values.seafile.cache.provider "redis" }}
   CACHE_PROVIDER: "redis"
   REDIS_HOST: {{ include "seafile.cache.host" . | quote }}
   REDIS_PORT: {{ include "seafile.cache.port" . | quote }}
-  MEMCACHED_HOST: ""
-  MEMCACHED_PORT: ""
   {{- else if eq .Values.seafile.cache.provider "memcached" }}
   CACHE_PROVIDER: "memcached"
   MEMCACHED_HOST: {{ include "seafile.cache.host" . | quote }}
   MEMCACHED_PORT: {{ include "seafile.cache.port" . | quote }}
-  REDIS_HOST: ""
-  REDIS_PORT: ""
   {{- end }}
 
   {{/* ---- Storage (pro only) ---- */}}
