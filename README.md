@@ -462,7 +462,8 @@ seafile:
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `seafile.database.host` | **Required.** Database host | `""` |
+| `seafile.database.mode` | `"internal"` (chart deploys MariaDB) or `"external"` (provide host) | `"external"` |
+| `seafile.database.host` | **Required when mode is external.** Database host | `""` |
 | `seafile.database.port` | Database port | `3306` |
 | `seafile.database.user` | Database user | `"seafile"` |
 | `seafile.database.password` | Database password (use `existingSecret` for production) | `""` |
@@ -475,8 +476,9 @@ seafile:
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
+| `seafile.cache.mode` | `"internal"` (chart deploys Redis) or `"external"` (provide host). When `internal`, `existingSecret` and `host` settings are ignored. | `"external"` |
 | `seafile.cache.provider` | `"redis"` or `"memcached"` | `"redis"` |
-| `seafile.cache.redis.host` | Redis host (required when provider is redis) | `""` |
+| `seafile.cache.redis.host` | Redis host (required when mode is external and provider is redis) | `""` |
 | `seafile.cache.redis.port` | Redis port | `6379` |
 | `seafile.cache.redis.password` | Redis password (use `existingSecret` for production) | `""` |
 | `seafile.cache.redis.existingSecret` | Existing secret for Redis password | `""` |
@@ -566,14 +568,32 @@ seafile:
 
 Cluster mode splits Seafile into two deployments:
 
-- **Backend** (1 replica) — handles background tasks: email notifications, maintenance jobs, search indexing. Always a single instance.
-- **Frontend** (scalable) — serves the web UI via Seahub. Can be scaled horizontally for HA.
+- **Backend** (`<release>-backend`, 1 replica) — handles background tasks: email notifications, maintenance jobs, search indexing. Always a single instance.
+- **Frontend** (`<release>-frontend`, scalable) — serves the web UI via Seahub. Can be scaled horizontally for HA.
 
 ### Requirements
 
-- Elasticsearch must be enabled (`elasticsearch.enabled: true`)
-- `ReadWriteMany` PVC (the chart forces this automatically when cluster is enabled)
-- Pro edition recommended (CE works but has limited cluster features)
+- **Pro edition** recommended (CE works but has limited cluster features)
+- **Elasticsearch** must be enabled (`elasticsearch.enabled: true`) — the chart will fail validation otherwise
+- **ReadWriteMany PVC** — the chart automatically forces `ReadWriteMany` access mode when cluster is enabled, since both backend and frontend pods mount the same volume
+- **External or shared cache** — all pods must share the same Redis/Memcached instance. When using `cache.mode: external`, point it at a shared Redis (e.g., Dragonfly, Redis Sentinel, or a dedicated Redis deployment). When using `cache.mode: internal`, the chart deploys a single Redis pod that all Seafile pods connect to.
+
+### How It Works
+
+When `cluster.enabled: true`, the chart:
+
+1. **Creates two Deployments** instead of one:
+   - `<release>-backend` with `CLUSTER_MODE=backend`
+   - `<release>-frontend` with `CLUSTER_MODE=frontend`
+   - Both receive `CLUSTER_SERVER=true` and `CLUSTER_INIT_MODE=<true|false>`
+
+2. **Adds `[cluster] enable = true`** to `seafile.conf` — both in the ConfigMap template (for fresh generation) and via `ensure_ini` in the patch path (for existing files). This section is only present when cluster mode is enabled.
+
+3. **Routes the Service** (`<release>-seafile`) exclusively to frontend pods. The backend has no exposed ports — it communicates only with the database, cache, and Elasticsearch.
+
+4. **Scales frontend replicas** to `cluster.frontend.replicas` (default: 2). During cluster init, frontend replicas are held at 0 so only the backend runs.
+
+5. **Shares the PVC** across all pods. Both deployments mount the same persistent volume, which is why `ReadWriteMany` is required.
 
 ### Init Workflow (Fresh Install)
 
@@ -596,15 +616,21 @@ seafile:
       replicas: 3
 ```
 
-### Architecture
+### Configuration Sync in Cluster Mode
 
-The service routes traffic exclusively to frontend pods. The backend deployment has no exposed ports — it communicates internally with the database, cache, and Elasticsearch.
+The same [Configuration Sync](#configuration-sync) mechanism applies to both backend and frontend pods. Each deployment has its own `configure` init container that:
+
+- Generates missing config files from templates (first run)
+- Ensures required sections exist — including `[cluster]`, `[database]`, and `[notification]` in `seafile.conf`
+- Patches existing config files with current values from the chart
+
+Since both pods share the same PVC, the init containers operate on the same config files. This is safe because they perform identical operations.
 
 ### Migrating an Existing Instance to Cluster Mode
 
 If you have an existing single-instance Seafile Pro deployment and want to enable cluster mode:
 
-1. **Prepare a ReadWriteMany PVC.** The chart forces `ReadWriteMany` access mode when cluster is enabled. You cannot change the access mode of an existing PVC in-place. Your options:
+1. **Prepare a ReadWriteMany PVC.** You cannot change the access mode of an existing PVC in-place. Your options:
 
    - If your storage class already supports RWX (NFS, CephFS, etc.), create a new PVC with `ReadWriteMany`, copy the data from the old PVC, and update `persistence.existingClaim`.
    - If you're on block storage (Longhorn RWO, EBS, etc.), you need to migrate to a shared filesystem first.
@@ -664,6 +690,28 @@ If you have an existing single-instance Seafile Pro deployment and want to enabl
    ```
 
 **Important:** Never use `initMode: true` when migrating — it would attempt to re-create databases and overwrite your admin account. Use `cluster.initMode: true` instead for the cluster-specific initialization.
+
+### Disabling Cluster Mode
+
+To go back to a single-instance deployment, set `cluster.enabled: false`. The chart will:
+
+- Create a single deployment (`<release>-seafile`) instead of backend/frontend
+- Remove the `[cluster]` section from `seafile.conf` (on next fresh generation)
+- Stop setting `CLUSTER_SERVER`, `CLUSTER_MODE`, and `CLUSTER_INIT_MODE` environment variables
+
+Note that you may also need to switch your PVC back to `ReadWriteOnce` if your storage class does not support `ReadWriteMany`.
+
+### Troubleshooting
+
+**Config files missing sections after switching from init to normal mode:**
+During `initMode`, Seafile's own init process creates minimal config files (e.g., `seafile.conf` with only `[fileserver]` and `[cluster]`). When you disable `initMode`, the chart's `configure` init container detects the existing file and uses `ensure_ini` to add any missing sections (`[database]`, `[notification]`, `[cluster]`) before patching values. Check the init container logs to confirm sections were added:
+
+```bash
+kubectl logs deploy/seafile-backend -c configure -n seafile
+```
+
+**Redis AuthenticationError (`invalid username-password pair`):**
+Verify that `cache.mode` matches your setup. If you use an external Redis (e.g., Dragonfly), set `cache.mode: external` — not `internal`. When `mode: internal`, the chart deploys its own Redis pod and ignores `existingSecret` / `host` settings. See [Cache](#cache) for details.
 
 ## Examples
 
