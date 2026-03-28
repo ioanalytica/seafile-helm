@@ -32,6 +32,19 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       initContainers:
+        {{- if eq .Values.seafile.database.mode "internal" }}
+        - name: wait-for-db
+          image: busybox
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for MariaDB at {{ include "seafile.database.host" . }}:{{ include "seafile.database.port" . }}..."
+              until nc -z {{ include "seafile.database.host" . }} {{ include "seafile.database.port" . }} 2>/dev/null; do
+                sleep 2
+              done
+              echo "MariaDB is ready"
+        {{- end }}
         {{- if and .Values.seafile.persistence.enabled (not .Values.seafile.initMode) }}
         - name: configure
           image: busybox
