@@ -152,8 +152,12 @@ spec:
                 echo "Patched seafile.conf"
               fi
 
-              # seafevents.conf: [DATABASE] section + [INDEX FILES] section
-              if [ -f "$CONF/seafevents.conf" ]; then
+              # seafevents.conf: generate from template if missing/empty, then patch
+              if [ ! -s "$CONF/seafevents.conf" ]; then
+                sed "s/__SEAFILE_MYSQL_DB_PASSWORD__/$DB_PASS/g;s/__ES_PASSWORD__/${ES_PASSWORD:-}/g" \
+                  /seafevents-config/seafevents.conf > "$CONF/seafevents.conf"
+                echo "Generated seafevents.conf from template"
+              else
                 patch_ini "$CONF/seafevents.conf" "DATABASE" "host" "$DB_HOST"
                 patch_ini "$CONF/seafevents.conf" "DATABASE" "port" "$DB_PORT"
                 patch_ini "$CONF/seafevents.conf" "DATABASE" "username" "$DB_USER"
@@ -165,7 +169,7 @@ spec:
                 {{- if and (ne .Values.seafile.elasticsearch.mode "internal") .Values.seafile.elasticsearch.username }}
                 patch_ini "$CONF/seafevents.conf" "INDEX FILES" "username" "$ES_USERNAME"
                 {{- end }}
-                {{- if .Values.seafile.elasticsearch.password }}
+                {{- if and (ne .Values.seafile.elasticsearch.mode "internal") .Values.seafile.elasticsearch.password }}
                 patch_ini "$CONF/seafevents.conf" "INDEX FILES" "password" "$ES_PASSWORD"
                 {{- end }}
                 {{- end }}
@@ -176,6 +180,8 @@ spec:
               mountPath: /shared
             - name: seahub-config
               mountPath: /seahub-config
+            - name: seafevents-config
+              mountPath: /seafevents-config
             {{- if and (eq .Values.seafile.edition "pro") .Values.seafile.seahub.ldap.enabled .Values.seafile.seahub.ldap.configMap }}
             - name: ldap-config
               mountPath: /ldap-config
@@ -267,6 +273,9 @@ spec:
         - name: seahub-config
           configMap:
             name: {{ include "seafile.fullname" . }}-seahub
+        - name: seafevents-config
+          configMap:
+            name: {{ include "seafile.fullname" . }}-seafevents
         {{- if and (eq .Values.seafile.edition "pro") .Values.seafile.seahub.ldap.enabled .Values.seafile.seahub.ldap.configMap }}
         - name: ldap-config
           configMap:

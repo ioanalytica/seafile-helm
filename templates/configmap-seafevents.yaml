@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "seafile.fullname" . }}-seafevents
+  labels:
+    {{- include "seafile.labels" . | nindent 4 }}
+data:
+  seafevents.conf: |
+    [DATABASE]
+    type = mysql
+    host = {{ include "seafile.database.host" . }}
+    port = {{ include "seafile.database.port" . }}
+    username = {{ .Values.seafile.database.user }}
+    password = __SEAFILE_MYSQL_DB_PASSWORD__
+    name = {{ .Values.seafile.database.seahubDbName }}
+
+    [AUDIT]
+    enabled = true
+
+    [FILE HISTORY]
+    enabled = true
+    suffix = md,txt,doc,docx,xls,xlsx,ppt,pptx,sdoc
+
+    {{- if .Values.seafile.elasticsearch.enabled }}
+
+    [INDEX FILES]
+    enabled = true
+    interval = 10m
+    es_host = {{ include "seafile.elasticsearch.host" . }}
+    es_port = {{ include "seafile.elasticsearch.port" . }}
+    {{- if and (ne .Values.seafile.elasticsearch.mode "internal") .Values.seafile.elasticsearch.username }}
+    username = {{ .Values.seafile.elasticsearch.username }}
+    {{- end }}
+    {{- if and (ne .Values.seafile.elasticsearch.mode "internal") .Values.seafile.elasticsearch.password }}
+    password = __ES_PASSWORD__
+    {{- end }}
+    {{- end }}
