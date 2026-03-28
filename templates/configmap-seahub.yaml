@@ -33,7 +33,10 @@ data:
         'default': {
             'BACKEND': 'django.core.cache.backends.redis.RedisCache',
             'LOCATION': 'redis://:' + os.environ.get('REDIS_PASSWORD', '') + '@{{ include "seafile.cache.host" . }}:{{ include "seafile.cache.port" . }}/0',
-        }
+        },
+        'locmem': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        },
     }
     {{- else if eq .Values.seafile.cache.provider "memcached" }}
 
@@ -41,7 +44,10 @@ data:
         'default': {
             'BACKEND': 'django.core.cache.backends.memcached.PyMemcacheCache',
             'LOCATION': '{{ include "seafile.cache.host" . }}:{{ include "seafile.cache.port" . }}',
-        }
+        },
+        'locmem': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        },
     }
     {{- end }}
 
