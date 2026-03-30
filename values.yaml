@@ -133,7 +133,7 @@ seafile:
     seafileDbName: "seafile_db"
     seahubDbName: "seahub_db"
     internal:
-      image: "mariadb:10.11"
+      image: "mariadb:12.2.2-noble"
       storageSize: "10Gi"
       storageClassName: ""
       resources: {}
@@ -158,7 +158,7 @@ seafile:
       existingSecret: ""
       existingSecretKey: "memcached-password"
     internal:
-      image: "redis:7-alpine"
+      image: "redis:8.6.2-alpine"
       storageSize: "1Gi"
       storageClassName: ""
       resources: {}
@@ -258,7 +258,7 @@ seafile:
     username: ""            # optional
     password: ""            # secret - use existingSecret for production (key: ES_PASSWORD)
     internal:
-      image: "elasticsearch:8.15.0"
+      image: "elasticsearch:8.19.13"
       javaOpts: "-Xms512m -Xmx512m"
       storageSize: "5Gi"
       storageClassName: ""

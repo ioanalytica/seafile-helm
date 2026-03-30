@@ -27,9 +27,9 @@ jobs:
           #   e.g. mariadb 10.11 tracks 10.11.x, redis 7-alpine tracks 7.x-alpine,
           #   elasticsearch 8.15.0 tracks 8.x.y
           IMAGES=(
-            "library/mariadb        10.11       ^10\.11\.\d+$           mariadb"
-            "library/redis          7-alpine    ^7\.\d+\.\d+-alpine$    redis"
-            "library/elasticsearch  8.15.0      ^8\.\d+\.\d+$           elasticsearch"
+            "library/mariadb        12.2.2-noble ^12\.\d+\.\d+-noble$   mariadb"
+            "library/redis          8.6.2-alpine ^8\.\d+\.\d+-alpine$   redis"
+            "library/elasticsearch  8.19.13     ^8\.\d+\.\d+$           elasticsearch"
           )
 
           for ENTRY in "${IMAGES[@]}"; do
