@@ -4,6 +4,12 @@ metadata:
   name: {{ include "seafile.fullname" . }}-seafile-conf
   labels:
     {{- include "seafile.labels" . | nindent 4 }}
+  {{- if .Values.seafile.cluster.enabled }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
+    helm.sh/hook-weight: "-5"
+  {{- end }}
 data:
   seafile.conf: |
     [fileserver]
