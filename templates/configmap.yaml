@@ -102,7 +102,7 @@ data:
   ENABLE_NOTIFICATION_SERVER: {{ .Values.seafile.notification.enabled | quote }}
   {{- if .Values.seafile.notification.enabled }}
   NOTIFICATION_SERVER_URL: {{ include "seafile.notification.url" . | quote }}
-  INNER_NOTIFICATION_SERVER_URL: "http://127.0.0.1:8083"
+  INNER_NOTIFICATION_SERVER_URL: {{ include "seafile.notification.innerUrl" . | quote }}
   {{- end }}
 
   {{/* ---- SeaDoc ---- */}}

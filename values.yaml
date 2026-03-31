@@ -191,14 +191,19 @@ seafile:
   jwt:
     privateKey: ""            # secret - use existingSecret for production
 
-  # Notification server
-  # The notification server runs as a subprocess inside the Seafile container on port 8083.
-  # When ingress is enabled, the chart automatically creates a WebSocket-capable ingress
-  # for the /notification path and sets INNER_NOTIFICATION_SERVER_URL=http://127.0.0.1:8083.
+  # Notification server (separate pod — not bundled in the Seafile container)
+  # mode: "internal" deploys a notification-server pod managed by this chart.
+  # mode: "external" emits env vars only; you deploy the notification server yourself.
+  # When internal and ingress is enabled, the chart creates a WebSocket ingress for
+  # /notification → notification server service on port 8083.
   # NOTIFICATION_SERVER_URL is auto-derived as <protocol>://<hostname>/notification.
   notification:
     enabled: false
-    url: ""                   # override auto-derived URL if your setup differs
+    mode: "internal"          # "internal" or "external"
+    url: ""                   # override auto-derived public URL if needed
+    internal:
+      image: "seafileltd/notification-server:13.0.10"
+      resources: {}
 
   # SeaDoc - collaborative document editor
   # mode: "internal" deploys an sdoc-server pod managed by this chart.

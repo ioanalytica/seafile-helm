@@ -209,6 +209,28 @@ Metadata server port
 {{- end }}
 
 {{/*
+Notification server internal host (used in seafile.conf and INNER_NOTIFICATION_SERVER_URL)
+*/}}
+{{- define "seafile.notification.host" -}}
+{{- if and .Values.seafile.notification.enabled (eq .Values.seafile.notification.mode "internal") -}}
+{{- include "seafile.fullname" . }}-notification
+{{- else -}}
+127.0.0.1
+{{- end -}}
+{{- end }}
+
+{{/*
+Notification server inner URL (used by Seahub to reach the notification server)
+*/}}
+{{- define "seafile.notification.innerUrl" -}}
+{{- if and .Values.seafile.notification.enabled (eq .Values.seafile.notification.mode "internal") -}}
+{{- printf "http://%s-notification:8083" (include "seafile.fullname" .) -}}
+{{- else -}}
+http://127.0.0.1:8083
+{{- end -}}
+{{- end }}
+
+{{/*
 Notification server URL: auto-derived from server hostname/protocol; override via notification.url
 */}}
 {{- define "seafile.notification.url" -}}

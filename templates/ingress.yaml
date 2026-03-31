@@ -48,7 +48,7 @@ spec:
   without affecting the main Seafile ingress.
 */}}
 {{- $needsWsIngress := and .Values.seafile.ingress.enabled (or
-    .Values.seafile.notification.enabled
+    (and .Values.seafile.notification.enabled (eq .Values.seafile.notification.mode "internal"))
     (and .Values.seafile.seadoc.enabled (eq .Values.seafile.seadoc.mode "internal"))
   ) }}
 {{- if $needsWsIngress }}
@@ -82,14 +82,14 @@ spec:
     - host: {{ .host | quote }}
       http:
         paths:
-          {{- if $.Values.seafile.notification.enabled }}
+          {{- if and $.Values.seafile.notification.enabled (eq $.Values.seafile.notification.mode "internal") }}
           - path: /notification
             pathType: Prefix
             backend:
               service:
-                name: {{ include "seafile.fullname" $ }}
+                name: {{ include "seafile.fullname" $ }}-notification
                 port:
-                  name: http
+                  number: 8083
           {{- end }}
           {{- if and $.Values.seafile.seadoc.enabled (eq $.Values.seafile.seadoc.mode "internal") }}
           - path: /sdoc-server
