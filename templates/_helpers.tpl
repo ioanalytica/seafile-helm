@@ -213,7 +213,7 @@ Notification server internal host (used in seafile.conf and INNER_NOTIFICATION_S
 */}}
 {{- define "seafile.notification.host" -}}
 {{- if and .Values.seafile.notification.enabled (eq .Values.seafile.notification.mode "internal") -}}
-{{- include "seafile.fullname" . }}-notification
+{{- printf "%s-notification.%s.svc.cluster.local" (include "seafile.fullname" .) .Release.Namespace -}}
 {{- else -}}
 127.0.0.1
 {{- end -}}
@@ -224,7 +224,7 @@ Notification server inner URL (used by Seahub to reach the notification server)
 */}}
 {{- define "seafile.notification.innerUrl" -}}
 {{- if and .Values.seafile.notification.enabled (eq .Values.seafile.notification.mode "internal") -}}
-{{- printf "http://%s-notification:8083" (include "seafile.fullname" .) -}}
+{{- printf "http://%s-notification.%s.svc.cluster.local:8083" (include "seafile.fullname" .) .Release.Namespace -}}
 {{- else -}}
 http://127.0.0.1:8083
 {{- end -}}
