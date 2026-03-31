@@ -165,7 +165,12 @@ seafile:
       existingSecret: ""
       existingSecretKey: "memcached-password"
     internal:
-      image: "redis:8.6.2-alpine"
+      # Dragonfly is a Redis/Memcached-compatible in-memory store. It speaks both
+      # the Redis protocol (port 6379) and the Memcached protocol (port 11211)
+      # simultaneously, which is required because some Seafile components (e.g.
+      # seahub CACHES) use Redis while others use Memcached. A single Dragonfly
+      # instance replaces the need for two separate cache services.
+      image: "dragonflydb/dragonfly:v1.26.0"
       storageSize: "1Gi"
       storageClassName: ""
       existingClaim: ""       # use a pre-created PVC; chart will not create or delete it
@@ -212,7 +217,7 @@ seafile:
   # Your ingress must route /sdoc-server/ (with WebSocket support) to the seadoc service.
   seadoc:
     enabled: false
-    mode: "external"          # "internal" or "external"
+    mode: "internal"          # "internal" or "external"
     url: ""                   # required when mode is external
     internal:
       image: "seafileltd/sdoc-server:2.0.9"
@@ -233,12 +238,19 @@ seafile:
   # Requires cache.provider: redis (or internal cache mode).
   metadata:
     enabled: false
-    mode: "external"          # "internal" or "external"
+    mode: "internal"          # "internal" or "external"
     host: ""                  # required when mode is external and enabled
     port: 8084
     maxCacheSize: "1GB"
     fileCountLimit: 100000
     checkUpdateInterval: "30m"
+    # MD_STORAGE_TYPE: storage backend for metadata itself.
+    # Leave empty to inherit from seafile.storage.type (disk or s3).
+    storageType: ""
+    # S3 bucket dedicated to metadata (S3_MD_BUCKET).
+    # Only used when storageType (or seafile.storage.type) is s3.
+    s3:
+      bucket: ""
     internal:
       image: "seafileltd/seafile-md-server:13.0.16"
       storageSize: "5Gi"

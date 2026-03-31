@@ -22,6 +22,9 @@ data:
   {{- if and (eq .Values.seafile.cache.mode "external") (eq .Values.seafile.cache.provider "memcached") (not .Values.seafile.cache.memcached.host) }}
     {{- fail "seafile.cache.memcached.host is required when cache.mode is external and cache.provider is memcached" }}
   {{- end }}
+  {{- if and .Values.seafile.metadata.enabled (eq .Values.seafile.cache.mode "external") (eq .Values.seafile.cache.provider "memcached") }}
+    {{- fail "seafile.metadata requires Redis; set cache.provider to redis (or use cache.mode: internal which deploys Dragonfly serving both protocols)" }}
+  {{- end }}
   {{- if and (eq .Values.seafile.edition "pro") (eq .Values.seafile.storage.type "s3") }}
     {{- if or (not .Values.seafile.storage.s3.commitBucket) (not .Values.seafile.storage.s3.fsBucket) (not .Values.seafile.storage.s3.blockBucket) (not .Values.seafile.storage.s3.keyId) }}
       {{- fail "seafile.storage.s3 buckets (commitBucket, fsBucket, blockBucket) and keyId are required when storage.type is s3" }}

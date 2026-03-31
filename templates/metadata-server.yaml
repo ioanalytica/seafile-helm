@@ -68,52 +68,42 @@ spec:
       containers:
         - name: metadata
           image: {{ .Values.seafile.metadata.internal.image }}
+          # Inherits SEAFILE_MYSQL_DB_*, SEAFILE_LOG_TO_STDOUT, CACHE_PROVIDER,
+          # REDIS_HOST/PORT, S3_*, SEAF_SERVER_STORAGE_TYPE (pro), JWT_PRIVATE_KEY,
+          # SEAFILE_MYSQL_DB_PASSWORD, REDIS_PASSWORD, S3_SECRET_KEY, S3_SSE_C_KEY
+          # from the shared configmap and secret.
+          envFrom:
+            - configMapRef:
+                name: {{ include "seafile.fullname" . }}-env
+            - secretRef:
+                name: {{ include "seafile.secretName" . }}
           env:
-            - name: JWT_PRIVATE_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "seafile.secretName" . }}
-                  key: JWT_PRIVATE_KEY
-            - name: REDIS_HOST
-              value: {{ include "seafile.cache.host" . | quote }}
-            - name: REDIS_PORT
-              value: {{ include "seafile.cache.port" . | quote }}
             {{- if and (ne .Values.seafile.cache.mode "internal") .Values.seafile.cache.redis.existingSecret }}
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.seafile.cache.redis.existingSecret }}
                   key: {{ .Values.seafile.cache.redis.existingSecretKey }}
-            {{- else }}
-            - name: REDIS_PASSWORD
+            {{- end }}
+            {{- if and (ne .Values.seafile.cache.mode "internal") .Values.seafile.cache.memcached.existingSecret }}
+            - name: MEMCACHED_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "seafile.secretName" . }}
-                  key: REDIS_PASSWORD
-                  optional: true
+                  name: {{ .Values.seafile.cache.memcached.existingSecret }}
+                  key: {{ .Values.seafile.cache.memcached.existingSecretKey }}
             {{- end }}
+            {{/* SEAF_SERVER_STORAGE_TYPE is only in the main configmap for pro edition;
+                 set it explicitly here so CE deployments also pass it correctly. */}}
             - name: SEAF_SERVER_STORAGE_TYPE
               value: {{ .Values.seafile.storage.type | quote }}
-            {{- if and (eq .Values.seafile.edition "pro") (eq .Values.seafile.storage.type "s3") }}
-            - name: S3_COMMIT_BUCKET
-              value: {{ .Values.seafile.storage.s3.commitBucket | quote }}
-            - name: S3_KEY_ID
-              value: {{ .Values.seafile.storage.s3.keyId | quote }}
-            - name: S3_SECRET_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "seafile.secretName" . }}
-                  key: S3_SECRET_KEY
-            - name: S3_USE_V4_SIGNATURE
-              value: {{ .Values.seafile.storage.s3.useV4Signature | quote }}
-            - name: S3_AWS_REGION
-              value: {{ .Values.seafile.storage.s3.region | quote }}
-            - name: S3_HOST
-              value: {{ .Values.seafile.storage.s3.host | quote }}
-            - name: S3_USE_HTTPS
-              value: {{ .Values.seafile.storage.s3.useHttps | quote }}
-            - name: S3_PATH_STYLE_REQUEST
-              value: {{ .Values.seafile.storage.s3.pathStyleRequest | quote }}
+            {{- if .Values.seafile.metadata.storageType }}
+            - name: MD_STORAGE_TYPE
+              value: {{ .Values.seafile.metadata.storageType | quote }}
+            {{- end }}
+            {{- $mdStorageType := .Values.seafile.metadata.storageType | default .Values.seafile.storage.type }}
+            {{- if and (eq $mdStorageType "s3") .Values.seafile.metadata.s3.bucket }}
+            - name: S3_MD_BUCKET
+              value: {{ .Values.seafile.metadata.s3.bucket | quote }}
             {{- end }}
             - name: MD_MAX_CACHE_SIZE
               value: {{ .Values.seafile.metadata.maxCacheSize | quote }}

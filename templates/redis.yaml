@@ -34,6 +34,10 @@ spec:
       protocol: TCP
       port: 6379
       targetPort: redis
+    - name: memcached
+      protocol: TCP
+      port: 11211
+      targetPort: memcached
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -66,16 +70,14 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
-        - name: redis
+        - name: dragonfly
           image: {{ .Values.seafile.cache.internal.image }}
           command:
-            - redis-server
-            - --appendonly
-            - "yes"
-            - --requirepass
-            - $(REDIS_PASSWORD)
+            - dragonfly
+            - --requirepass=$(DFLY_PASSWORD)
+            - --memcached_port=11211
           env:
-            - name: REDIS_PASSWORD
+            - name: DFLY_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ include "seafile.secretName" . }}
@@ -83,6 +85,9 @@ spec:
           ports:
             - name: redis
               containerPort: 6379
+              protocol: TCP
+            - name: memcached
+              containerPort: 11211
               protocol: TCP
           volumeMounts:
             - name: redis-data

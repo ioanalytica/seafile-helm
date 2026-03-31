@@ -7,7 +7,7 @@ A Helm chart for deploying [Seafile](https://www.seafile.com/) on Kubernetes. Su
 - Kubernetes 1.24+
 - Helm 3+
 - An external **MySQL/MariaDB** database
-- An external **Redis** (recommended) or Memcached instance
+- An external **Redis** or Memcached instance (or use `cache.mode: internal` to deploy Dragonfly)
 - For Pro edition: a valid Seafile license file
 
 ## Quick Start
@@ -476,7 +476,7 @@ seafile:
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `seafile.cache.mode` | `"internal"` (chart deploys Redis) or `"external"` (provide host). When `internal`, `existingSecret` and `host` settings are ignored. | `"external"` |
+| `seafile.cache.mode` | `"internal"` (chart deploys Dragonfly) or `"external"` (provide host). When `internal`, `existingSecret` and `host` settings are ignored. | `"external"` |
 | `seafile.cache.provider` | `"redis"` or `"memcached"` | `"redis"` |
 | `seafile.cache.redis.host` | Redis host (required when mode is external and provider is redis) | `""` |
 | `seafile.cache.redis.port` | Redis port | `6379` |
@@ -489,28 +489,66 @@ seafile:
 | `seafile.cache.memcached.existingSecret` | Existing secret for Memcached password | `""` |
 | `seafile.cache.memcached.existingSecretKey` | Key in the existing secret | `"memcached-password"` |
 
-### Using Dragonfly as a Unified Cache
+### Cache and Dragonfly
 
-Seafile uses both Redis and Memcached protocols internally. Rather than running two separate cache services, you can use [Dragonfly](https://www.dragonflydb.io/) — a modern in-memory store that speaks both protocols on a single instance.
+Seafile's components use different cache protocols:
 
-Configure both `redis` and `memcached` sections to point at the same Dragonfly service:
+- **Seahub** (the web UI) uses **Redis** for its `CACHES` backend
+- **Seafile server** internal components use **Memcached**
+
+Rather than running two separate cache services, the chart uses [Dragonfly](https://www.dragonflydb.io/) — a Redis/Memcached-compatible in-memory store that serves both protocols simultaneously on a single instance: Redis on port 6379 and Memcached on port 11211, with the same credentials.
+
+The chart always emits both `REDIS_HOST`/`REDIS_PASSWORD` and `MEMCACHED_HOST`/`MEMCACHED_PASSWORD` environment variables to Seafile regardless of the `provider` setting. The `provider` value only controls which backend `seahub_settings.py` uses for its `CACHES` dict.
+
+#### Internal cache (Dragonfly deployed by the chart)
+
+```yaml
+seafile:
+  cache:
+    mode: internal     # deploys a Dragonfly pod; both Redis and Memcached ports are available
+    provider: redis    # controls seahub's CACHES backend
+```
+
+#### External Dragonfly
+
+If you run your own Dragonfly instance, point both `redis` and `memcached` at the same host with their respective ports and the same credentials:
 
 ```yaml
 seafile:
   cache:
     mode: external
-    provider: "redis"           # seahub CACHES backend
+    provider: redis          # seahub uses Redis protocol
     redis:
-      host: "dragonfly.seafile.svc"
+      host: "dragonfly.example.com"
+      port: 6379
       existingSecret: "dragonfly-secret"
       existingSecretKey: "PASSWORD"
     memcached:
-      host: "dragonfly.seafile.svc"
+      host: "dragonfly.example.com"
+      port: 11211
       existingSecret: "dragonfly-secret"
       existingSecretKey: "PASSWORD"
 ```
 
-The chart always emits both `REDIS_HOST`/`REDIS_PASSWORD` and `MEMCACHED_HOST`/`MEMCACHED_PASSWORD` environment variables, regardless of the `provider` setting. The `provider` only controls which backend `seahub_settings.py` uses for its `CACHES` dict.
+#### External Redis + Memcached (separate services)
+
+You can also run Redis and Memcached as separate external services:
+
+```yaml
+seafile:
+  cache:
+    mode: external
+    provider: redis
+    redis:
+      host: "redis.example.com"
+      existingSecret: "redis-secret"
+      existingSecretKey: "redis-password"
+    memcached:
+      host: "memcached.example.com"
+      port: 11211
+```
+
+> **Note:** The metadata server requires Redis. Setting `metadata.enabled: true` with `cache.provider: memcached` will fail chart validation.
 
 ### Storage (Pro edition)
 
