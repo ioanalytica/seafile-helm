@@ -191,7 +191,7 @@ Metadata server host: internal service name or user-provided
 */}}
 {{- define "seafile.metadata.host" -}}
 {{- if eq .Values.seafile.metadata.mode "internal" -}}
-{{- include "seafile.fullname" . }}-metadata
+{{- printf "%s-metadata.%s.svc.cluster.local" (include "seafile.fullname" .) .Release.Namespace -}}
 {{- else -}}
 {{- .Values.seafile.metadata.host -}}
 {{- end -}}
