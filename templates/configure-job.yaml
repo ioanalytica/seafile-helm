@@ -1,24 +1,25 @@
 {{- if .Values.seafile.cluster.enabled }}
-apiVersion: apps/v1
-kind: Deployment
+{{- if and .Values.seafile.persistence.enabled (ne (include "seafile.cluster.initMode" .) "true") }}
+---
+apiVersion: batch/v1
+kind: Job
 metadata:
-  name: {{ include "seafile.fullname" . }}-frontend
+  name: {{ include "seafile.fullname" . }}-configure
   labels:
     {{- include "seafile.labels" . | nindent 4 }}
-    app.kubernetes.io/component: frontend
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
+    helm.sh/hook-weight: "0"
 spec:
-  replicas: {{ include "seafile.cluster.frontendReplicas" . }}
-  selector:
-    matchLabels:
-      {{- include "seafile.frontendSelectorLabels" . | nindent 6 }}
+  ttlSecondsAfterFinished: 600
   template:
     metadata:
       labels:
-        {{- include "seafile.frontendSelectorLabels" . | nindent 8 }}
-      annotations:
-        kubectl.kubernetes.io/default-container: "seafile"
+        {{- include "seafile.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: configure-job
     spec:
-      enableServiceLinks: false
+      restartPolicy: OnFailure
       {{- with .Values.seafile.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -31,21 +32,7 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      initContainers:
-        {{- if eq .Values.seafile.database.mode "internal" }}
-        - name: wait-for-db
-          image: busybox
-          command:
-            - sh
-            - -c
-            - |
-              echo "Waiting for MariaDB at {{ include "seafile.database.host" . }}:{{ include "seafile.database.port" . }}..."
-              until nc -z {{ include "seafile.database.host" . }} {{ include "seafile.database.port" . }} 2>/dev/null; do
-                sleep 2
-              done
-              echo "MariaDB is ready"
-        {{- end }}
-        {{- if and .Values.seafile.persistence.enabled (not .Values.seafile.initMode) (not .Values.seafile.cluster.enabled) }}
+      containers:
         - name: configure
           image: busybox
           env:
@@ -113,8 +100,6 @@ spec:
                 ' "$_file" > "$_file.tmp" && mv "$_file.tmp" "$_file"
               }
 
-              # ensure_ini FILE SECTION KEY=VALUE ...
-              # Adds [SECTION] with key = value lines if the section is missing
               ensure_ini() {
                 _file="$1" _section="$2"; shift 2
                 if ! grep -q "^\[$_section\]" "$_file"; then
@@ -226,78 +211,10 @@ spec:
             - name: ldap-config
               mountPath: /ldap-config
             {{- end }}
-        {{- end }}
-      containers:
-        - name: seafile
-          image: {{ include "seafile.image" . }}
-          envFrom:
-            - configMapRef:
-                name: {{ include "seafile.fullname" . }}-env
-            - secretRef:
-                name: {{ include "seafile.secretName" . }}
-          {{- with .Values.seafile.extraEnv }}
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
-          env:
-            - name: SEAFILE_AI_SECRET_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "seafile.secretName" . }}
-                  key: JWT_PRIVATE_KEY
-            - name: CLUSTER_INIT_MODE
-              value: {{ include "seafile.cluster.initMode" . | quote }}
-            - name: CLUSTER_SERVER
-              value: "true"
-            - name: CLUSTER_MODE
-              value: "frontend"
-            {{- if and (ne .Values.seafile.cache.mode "internal") .Values.seafile.cache.redis.existingSecret }}
-            - name: REDIS_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.seafile.cache.redis.existingSecret }}
-                  key: {{ .Values.seafile.cache.redis.existingSecretKey }}
-            {{- end }}
-            {{- if and (ne .Values.seafile.cache.mode "internal") .Values.seafile.cache.memcached.existingSecret }}
-            - name: MEMCACHED_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.seafile.cache.memcached.existingSecret }}
-                  key: {{ .Values.seafile.cache.memcached.existingSecretKey }}
-            {{- end }}
-            {{- if and (eq .Values.seafile.edition "pro") .Values.seafile.seahub.ldap.enabled }}
-            - name: LDAP_ADMIN_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "seafile.secretName" . }}
-                  key: LDAP_ADMIN_PASSWORD
-            {{- end }}
-          ports:
-            - name: http
-              containerPort: 80
-              protocol: TCP
-          volumeMounts:
-            {{- if .Values.seafile.persistence.enabled }}
-            - name: seafile-data
-              mountPath: /shared
-            {{- end }}
-            {{- if and (ne .Values.seafile.edition "ce") .Values.seafile.license.existingSecret }}
-            - name: seafile-license
-              mountPath: /opt/seafile/seafile-license.txt
-              subPath: {{ .Values.seafile.license.secretKey }}
-              readOnly: true
-            {{- end }}
-            {{- if .Values.seafile.logging.ephemeral }}
-            - name: seafile-logs
-              mountPath: /shared/seafile/logs
-            {{- end }}
-            {{- with .Values.seafile.extraVolumeMounts }}
-            {{- toYaml . | nindent 12 }}
-            {{- end }}
-          {{- with .Values.seafile.resources }}
-          resources:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
       volumes:
+        - name: seafile-data
+          persistentVolumeClaim:
+            claimName: {{ .Values.seafile.persistence.existingClaim | default (printf "%s-data" (include "seafile.fullname" .)) }}
         - name: seahub-config
           configMap:
             name: {{ include "seafile.fullname" . }}-seahub
@@ -315,22 +232,5 @@ spec:
           configMap:
             name: {{ .Values.seafile.seahub.ldap.configMap }}
         {{- end }}
-        {{- if and (ne .Values.seafile.edition "ce") .Values.seafile.license.existingSecret }}
-        - name: seafile-license
-          secret:
-            secretName: {{ .Values.seafile.license.existingSecret }}
-        {{- end }}
-        {{- if .Values.seafile.persistence.enabled }}
-        - name: seafile-data
-          persistentVolumeClaim:
-            claimName: {{ .Values.seafile.persistence.existingClaim | default (printf "%s-data" (include "seafile.fullname" .)) }}
-        {{- end }}
-        {{- if .Values.seafile.logging.ephemeral }}
-        - name: seafile-logs
-          emptyDir: {}
-        {{- end }}
-        {{- with .Values.seafile.extraVolumes }}
-        {{- toYaml . | nindent 8 }}
-        {{- end }}
-      restartPolicy: Always
+{{- end }}
 {{- end }}

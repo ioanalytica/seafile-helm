@@ -58,7 +58,7 @@ spec:
               done
               echo "MariaDB is ready"
         {{- end }}
-        {{- if and .Values.seafile.persistence.enabled (not .Values.seafile.initMode) }}
+        {{- if and .Values.seafile.persistence.enabled (not .Values.seafile.initMode) (not .Values.seafile.cluster.enabled) }}
         - name: configure
           image: busybox
           env:
