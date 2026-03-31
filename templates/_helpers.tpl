@@ -185,3 +185,47 @@ Elasticsearch port
 {{- .Values.seafile.elasticsearch.port -}}
 {{- end -}}
 {{- end }}
+
+{{/*
+Metadata server host: internal service name or user-provided
+*/}}
+{{- define "seafile.metadata.host" -}}
+{{- if eq .Values.seafile.metadata.mode "internal" -}}
+{{- include "seafile.fullname" . }}-metadata
+{{- else -}}
+{{- .Values.seafile.metadata.host -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+Metadata server port
+*/}}
+{{- define "seafile.metadata.port" -}}
+{{- if eq .Values.seafile.metadata.mode "internal" -}}
+8084
+{{- else -}}
+{{- .Values.seafile.metadata.port -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+Notification server URL: auto-derived from server hostname/protocol; override via notification.url
+*/}}
+{{- define "seafile.notification.url" -}}
+{{- if .Values.seafile.notification.url -}}
+{{- .Values.seafile.notification.url -}}
+{{- else -}}
+{{- printf "%s://%s/notification" .Values.seafile.server.protocol .Values.seafile.server.hostname -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+SeaDoc server URL: auto-derived for internal mode, user-provided for external
+*/}}
+{{- define "seafile.seadoc.url" -}}
+{{- if and .Values.seafile.seadoc.enabled (eq .Values.seafile.seadoc.mode "internal") -}}
+{{- printf "%s://%s/sdoc-server" .Values.seafile.server.protocol .Values.seafile.server.hostname -}}
+{{- else -}}
+{{- .Values.seafile.seadoc.url -}}
+{{- end -}}
+{{- end }}

@@ -27,11 +27,11 @@ data:
       {{- fail "seafile.storage.s3 buckets (commitBucket, fsBucket, blockBucket) and keyId are required when storage.type is s3" }}
     {{- end }}
   {{- end }}
-  {{- if and .Values.seafile.notification.enabled (not .Values.seafile.notification.url) }}
-    {{- fail "seafile.notification.url is required when notification.enabled is true" }}
+  {{- if and .Values.seafile.seadoc.enabled (eq .Values.seafile.seadoc.mode "external") (not .Values.seafile.seadoc.url) }}
+    {{- fail "seafile.seadoc.url is required when seadoc.enabled is true and seadoc.mode is external" }}
   {{- end }}
-  {{- if and .Values.seafile.seadoc.enabled (not .Values.seafile.seadoc.url) }}
-    {{- fail "seafile.seadoc.url is required when seadoc.enabled is true" }}
+  {{- if and .Values.seafile.metadata.enabled (eq .Values.seafile.metadata.mode "external") (not .Values.seafile.metadata.host) }}
+    {{- fail "seafile.metadata.host is required when metadata.enabled is true and metadata.mode is external" }}
   {{- end }}
   {{- if and .Values.seafile.ai.enabled (not .Values.seafile.ai.url) }}
     {{- fail "seafile.ai.url is required when ai.enabled is true" }}
@@ -97,16 +97,18 @@ data:
   {{- end }}
 
   {{/* ---- Notification ---- */}}
+  {{/* The notification server runs as a subprocess inside the Seafile container on  */}}
+  {{/* port 8083. INNER_NOTIFICATION_SERVER_URL always points to that local endpoint. */}}
   ENABLE_NOTIFICATION_SERVER: {{ .Values.seafile.notification.enabled | quote }}
   {{- if .Values.seafile.notification.enabled }}
-  NOTIFICATION_SERVER_URL: {{ .Values.seafile.notification.url | quote }}
-  INNER_NOTIFICATION_SERVER_URL: {{ .Values.seafile.notification.url | quote }}
+  NOTIFICATION_SERVER_URL: {{ include "seafile.notification.url" . | quote }}
+  INNER_NOTIFICATION_SERVER_URL: "http://127.0.0.1:8083"
   {{- end }}
 
   {{/* ---- SeaDoc ---- */}}
   ENABLE_SEADOC: {{ .Values.seafile.seadoc.enabled | quote }}
   {{- if .Values.seafile.seadoc.enabled }}
-  SEADOC_SERVER_URL: {{ .Values.seafile.seadoc.url | quote }}
+  SEADOC_SERVER_URL: {{ include "seafile.seadoc.url" . | quote }}
   {{- end }}
 
   {{/* ---- Seafile AI ---- */}}

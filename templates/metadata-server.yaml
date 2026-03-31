@@ -1,0 +1,137 @@
+{{- if and .Values.seafile.metadata.enabled (eq .Values.seafile.metadata.mode "internal") }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "seafile.fullname" . }}-metadata-data
+  labels:
+    {{- include "seafile.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- if .Values.seafile.metadata.internal.storageClassName }}
+  storageClassName: {{ .Values.seafile.metadata.internal.storageClassName | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.seafile.metadata.internal.storageSize }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "seafile.fullname" . }}-metadata
+  labels:
+    {{- include "seafile.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: {{ include "seafile.name" . }}-metadata
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8084
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "seafile.fullname" . }}-metadata
+  labels:
+    {{- include "seafile.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "seafile.name" . }}-metadata
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "seafile.name" . }}-metadata
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      {{- with .Values.seafile.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.seafile.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.seafile.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: metadata
+          image: {{ .Values.seafile.metadata.internal.image }}
+          env:
+            - name: JWT_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "seafile.secretName" . }}
+                  key: JWT_PRIVATE_KEY
+            - name: REDIS_HOST
+              value: {{ include "seafile.cache.host" . | quote }}
+            - name: REDIS_PORT
+              value: {{ include "seafile.cache.port" . | quote }}
+            {{- if and (ne .Values.seafile.cache.mode "internal") .Values.seafile.cache.redis.existingSecret }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.seafile.cache.redis.existingSecret }}
+                  key: {{ .Values.seafile.cache.redis.existingSecretKey }}
+            {{- else }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "seafile.secretName" . }}
+                  key: REDIS_PASSWORD
+                  optional: true
+            {{- end }}
+            - name: SEAF_SERVER_STORAGE_TYPE
+              value: {{ .Values.seafile.storage.type | quote }}
+            {{- if and (eq .Values.seafile.edition "pro") (eq .Values.seafile.storage.type "s3") }}
+            - name: S3_COMMIT_BUCKET
+              value: {{ .Values.seafile.storage.s3.commitBucket | quote }}
+            - name: S3_KEY_ID
+              value: {{ .Values.seafile.storage.s3.keyId | quote }}
+            - name: S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "seafile.secretName" . }}
+                  key: S3_SECRET_KEY
+            - name: S3_USE_V4_SIGNATURE
+              value: {{ .Values.seafile.storage.s3.useV4Signature | quote }}
+            - name: S3_AWS_REGION
+              value: {{ .Values.seafile.storage.s3.region | quote }}
+            - name: S3_HOST
+              value: {{ .Values.seafile.storage.s3.host | quote }}
+            - name: S3_USE_HTTPS
+              value: {{ .Values.seafile.storage.s3.useHttps | quote }}
+            - name: S3_PATH_STYLE_REQUEST
+              value: {{ .Values.seafile.storage.s3.pathStyleRequest | quote }}
+            {{- end }}
+            - name: MD_MAX_CACHE_SIZE
+              value: {{ .Values.seafile.metadata.maxCacheSize | quote }}
+            - name: MD_FILE_COUNT_LIMIT
+              value: {{ .Values.seafile.metadata.fileCountLimit | quote }}
+            - name: MD_CHECK_UPDATE_INTERVAL
+              value: {{ .Values.seafile.metadata.checkUpdateInterval | quote }}
+          ports:
+            - name: http
+              containerPort: 8084
+              protocol: TCP
+          volumeMounts:
+            - name: metadata-data
+              mountPath: /opt/seafile-data
+          {{- with .Values.seafile.metadata.internal.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: metadata-data
+          persistentVolumeClaim:
+            claimName: {{ include "seafile.fullname" . }}-metadata-data
+{{- end }}

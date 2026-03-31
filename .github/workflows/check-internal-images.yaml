@@ -29,9 +29,11 @@ jobs:
           #   e.g. mariadb 10.11 tracks 10.11.x, redis 7-alpine tracks 7.x-alpine,
           #   elasticsearch 8.15.0 tracks 8.x.y
           IMAGES=(
-            "library/mariadb        12.2.2-noble ^12\.\d+\.\d+-noble$   mariadb"
-            "library/redis          8.6.2-alpine ^8\.\d+\.\d+-alpine$   redis"
-            "library/elasticsearch  8.19.13     ^8\.\d+\.\d+$           elasticsearch"
+            "library/mariadb              12.2.2-noble ^12\.\d+\.\d+-noble$    mariadb"
+            "library/redis                8.6.2-alpine ^8\.\d+\.\d+-alpine$    redis"
+            "library/elasticsearch        8.19.13      ^8\.\d+\.\d+$           elasticsearch"
+            "seafileltd/seafile-md-server 13.0.16      ^13\.\d+\.\d+$          metadata.internal"
+            "seafileltd/sdoc-server       2.0.9        ^2\.\d+\.\d+$           seadoc.internal"
           )
 
           for ENTRY in "${IMAGES[@]}"; do

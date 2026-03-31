@@ -31,6 +31,12 @@ seafile:
     #  - secretName: seafile-tls
     #    hosts:
     #      - seafile.example.com
+    # Annotations applied to the dedicated WebSocket ingress created for /notification
+    # and /sdoc-server (internal SeaDoc) when those features are enabled.
+    # These defaults work with nginx ingress controller; adjust for other controllers.
+    websocketAnnotations:
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 
   # Persistent storage
   persistence:
@@ -184,23 +190,52 @@ seafile:
     privateKey: ""            # secret - use existingSecret for production
 
   # Notification server
+  # The notification server runs as a subprocess inside the Seafile container on port 8083.
+  # When ingress is enabled, the chart automatically creates a WebSocket-capable ingress
+  # for the /notification path and sets INNER_NOTIFICATION_SERVER_URL=http://127.0.0.1:8083.
+  # NOTIFICATION_SERVER_URL is auto-derived as <protocol>://<hostname>/notification.
   notification:
     enabled: false
-    url: ""                   # required when enabled
+    url: ""                   # override auto-derived URL if your setup differs
 
-  # SeaDoc
+  # SeaDoc - collaborative document editor
+  # mode: "internal" deploys an sdoc-server pod managed by this chart.
+  # mode: "external" requires url to be set.
+  # When internal, SEADOC_SERVER_URL is auto-derived as <protocol>://<hostname>/sdoc-server.
+  # Your ingress must route /sdoc-server/ (with WebSocket support) to the seadoc service.
   seadoc:
     enabled: false
-    url: ""                   # required when enabled
+    mode: "external"          # "internal" or "external"
+    url: ""                   # required when mode is external
+    internal:
+      image: "seafileltd/sdoc-server:2.0.9"
+      storageSize: "5Gi"
+      storageClassName: ""
+      resources: {}
 
-  # Seafile AI
+  # Seafile AI (external only — requires LLM API keys and optional GPU)
+  # Deploy separately following https://manual.seafile.com/13.0/extension/seafile-ai/
   ai:
     enabled: false
     url: ""                   # required when enabled
 
-  # Metadata
+  # Metadata server - enables metadata management and is required for Seafile AI
+  # mode: "internal" deploys a seafile-md-server pod managed by this chart.
+  # mode: "external" requires host to be set.
+  # Requires cache.provider: redis (or internal cache mode).
   metadata:
+    enabled: false
+    mode: "external"          # "internal" or "external"
+    host: ""                  # required when mode is external and enabled
+    port: 8084
+    maxCacheSize: "1GB"
     fileCountLimit: 100000
+    checkUpdateInterval: "30m"
+    internal:
+      image: "seafileltd/seafile-md-server:13.0.16"
+      storageSize: "5Gi"
+      storageClassName: ""
+      resources: {}
 
   # License (pro edition only)
   # Mount a Seafile license file from an existing Secret.

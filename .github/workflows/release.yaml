@@ -23,28 +23,23 @@ jobs:
       - name: Install Helm
         uses: azure/setup-helm@v4
 
-      - name: Extract version
-        id: meta
-        run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
-          else
-            VERSION=$(grep '^version:' Chart.yaml | sed 's/version: *"\(.*\)"/\1/')
-            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Package chart
-        run: helm package .
+        id: package
+        run: |
+          helm package .
+          VERSION=$(grep '^version:' Chart.yaml | sed 's/version: *"\(.*\)"/\1/')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "file=seafile-${VERSION}.tgz" >> "$GITHUB_OUTPUT"
 
       - name: Log in to GitHub Container Registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ${{ env.REGISTRY }} --username ${{ github.actor }} --password-stdin
 
       - name: Push Helm chart to OCI registry
-        run: helm push seafile-${{ steps.meta.outputs.version }}.tgz oci://${{ env.REGISTRY }}/ioanalytica/charts
+        run: helm push ${{ steps.package.outputs.file }} oci://${{ env.REGISTRY }}/ioanalytica/charts
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: seafile-*.tgz
+          files: ${{ steps.package.outputs.file }}
           generate_release_notes: true

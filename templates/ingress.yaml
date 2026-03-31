@@ -39,3 +39,66 @@ spec:
           {{- end }}
     {{- end }}
 {{- end }}
+{{/*
+  WebSocket ingress — created when any feature requires WebSocket upgrade on a sub-path.
+  Currently covers:
+    /notification  → Seafile service   (notification server subprocess, port 8083 internally)
+    /sdoc-server   → SeaDoc service    (internal SeaDoc deployment)
+  A separate Ingress is used so these paths can carry WebSocket-specific annotations
+  without affecting the main Seafile ingress.
+*/}}
+{{- $needsWsIngress := and .Values.seafile.ingress.enabled (or
+    .Values.seafile.notification.enabled
+    (and .Values.seafile.seadoc.enabled (eq .Values.seafile.seadoc.mode "internal"))
+  ) }}
+{{- if $needsWsIngress }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "seafile.fullname" . }}-ws
+  labels:
+    {{- include "seafile.labels" . | nindent 4 }}
+  {{- with .Values.seafile.ingress.websocketAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.seafile.ingress.ingressClassName }}
+  ingressClassName: {{ .Values.seafile.ingress.ingressClassName }}
+  {{- end }}
+  {{- if .Values.seafile.ingress.tls }}
+  tls:
+    {{- range .Values.seafile.ingress.tls }}
+    - hosts:
+        {{- range .hosts }}
+        - {{ . | quote }}
+        {{- end }}
+      secretName: {{ .secretName }}
+    {{- end }}
+  {{- end }}
+  rules:
+    {{- range .Values.seafile.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- if $.Values.seafile.notification.enabled }}
+          - path: /notification
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "seafile.fullname" $ }}
+                port:
+                  name: http
+          {{- end }}
+          {{- if and $.Values.seafile.seadoc.enabled (eq $.Values.seafile.seadoc.mode "internal") }}
+          - path: /sdoc-server
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "seafile.fullname" $ }}-seadoc
+                port:
+                  name: http
+          {{- end }}
+    {{- end }}
+{{- end }}

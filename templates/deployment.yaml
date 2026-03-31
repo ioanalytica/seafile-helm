@@ -195,6 +195,7 @@ spec:
                 patch_ini "$CONF/seafile.conf" "database" "user" "$DB_USER"
                 patch_ini "$CONF/seafile.conf" "database" "password" "$DB_PASS"
                 patch_ini "$CONF/seafile.conf" "database" "db_name" "$SEAFILE_DB"
+                patch_ini "$CONF/seafile.conf" "notification" "enabled" "{{ if .Values.seafile.notification.enabled }}true{{ else }}false{{ end }}"
                 patch_ini "$CONF/seafile.conf" "notification" "jwt_private_key" "$JWT_KEY"
                 echo "Patched seafile.conf"
               fi

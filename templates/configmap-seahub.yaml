@@ -58,6 +58,13 @@ data:
     LDAP_ADMIN_PASSWORD = os.environ.get('LDAP_ADMIN_PASSWORD', '')
     {{- end }}
 
+    {{- if .Values.seafile.metadata.enabled }}
+
+    # Metadata management
+    ENABLE_METADATA_MANAGEMENT = True
+    METADATA_SERVER_URL = 'http://{{ include "seafile.metadata.host" . }}:{{ include "seafile.metadata.port" . }}'
+    {{- end }}
+
     TIME_ZONE = {{ .Values.seafile.server.timezone | squote }}
 
     {{- if .Values.seafile.seahub.rawConfig }}
