@@ -116,6 +116,10 @@ spec:
               containerPort: 8084
               protocol: TCP
           volumeMounts:
+            {{- if .Values.seafile.persistence.enabled }}
+            - name: seafile-data
+              mountPath: /shared
+            {{- end }}
             - name: metadata-data
               mountPath: /opt/seafile-data
           {{- with .Values.seafile.metadata.internal.resources }}
@@ -123,6 +127,11 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
       volumes:
+        {{- if .Values.seafile.persistence.enabled }}
+        - name: seafile-data
+          persistentVolumeClaim:
+            claimName: {{ .Values.seafile.persistence.existingClaim | default (printf "%s-data" (include "seafile.fullname" .)) }}
+        {{- end }}
         - name: metadata-data
           persistentVolumeClaim:
             claimName: {{ .Values.seafile.metadata.internal.existingClaim | default (printf "%s-metadata-data" (include "seafile.fullname" .)) }}
