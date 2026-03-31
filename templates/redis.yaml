@@ -1,4 +1,5 @@
 {{- if eq .Values.seafile.cache.mode "internal" }}
+{{- if not .Values.seafile.cache.internal.existingClaim }}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -15,6 +16,7 @@ spec:
   resources:
     requests:
       storage: {{ .Values.seafile.cache.internal.storageSize }}
+{{- end }}
 ---
 apiVersion: v1
 kind: Service
@@ -92,5 +94,5 @@ spec:
       volumes:
         - name: redis-data
           persistentVolumeClaim:
-            claimName: {{ include "seafile.fullname" . }}-redis-data
+            claimName: {{ .Values.seafile.cache.internal.existingClaim | default (printf "%s-redis-data" (include "seafile.fullname" .)) }}
 {{- end }}

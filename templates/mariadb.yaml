@@ -14,6 +14,7 @@ data:
     GRANT ALL ON `{{ .Values.seafile.database.ccnetDbName }}`.* TO '{{ .Values.seafile.database.user }}'@'%';
     GRANT ALL ON `{{ .Values.seafile.database.seafileDbName }}`.* TO '{{ .Values.seafile.database.user }}'@'%';
     GRANT ALL ON `{{ .Values.seafile.database.seahubDbName }}`.* TO '{{ .Values.seafile.database.user }}'@'%';
+{{- if not .Values.seafile.database.internal.existingClaim }}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -30,6 +31,7 @@ spec:
   resources:
     requests:
       storage: {{ .Values.seafile.database.internal.storageSize }}
+{{- end }}
 ---
 apiVersion: v1
 kind: Service
@@ -110,7 +112,7 @@ spec:
       volumes:
         - name: mariadb-data
           persistentVolumeClaim:
-            claimName: {{ include "seafile.fullname" . }}-mariadb-data
+            claimName: {{ .Values.seafile.database.internal.existingClaim | default (printf "%s-mariadb-data" (include "seafile.fullname" .)) }}
         - name: init-scripts
           configMap:
             name: {{ include "seafile.fullname" . }}-mariadb-init

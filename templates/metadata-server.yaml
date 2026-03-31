@@ -1,4 +1,5 @@
 {{- if and .Values.seafile.metadata.enabled (eq .Values.seafile.metadata.mode "internal") }}
+{{- if not .Values.seafile.metadata.internal.existingClaim }}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -15,6 +16,7 @@ spec:
   resources:
     requests:
       storage: {{ .Values.seafile.metadata.internal.storageSize }}
+{{- end }}
 ---
 apiVersion: v1
 kind: Service
@@ -133,5 +135,5 @@ spec:
       volumes:
         - name: metadata-data
           persistentVolumeClaim:
-            claimName: {{ include "seafile.fullname" . }}-metadata-data
+            claimName: {{ .Values.seafile.metadata.internal.existingClaim | default (printf "%s-metadata-data" (include "seafile.fullname" .)) }}
 {{- end }}

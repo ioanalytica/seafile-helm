@@ -142,6 +142,7 @@ seafile:
       image: "mariadb:12.2.2-noble"
       storageSize: "10Gi"
       storageClassName: ""
+      existingClaim: ""       # use a pre-created PVC; chart will not create or delete it
       resources: {}
 
   # Cache
@@ -167,6 +168,7 @@ seafile:
       image: "redis:8.6.2-alpine"
       storageSize: "1Gi"
       storageClassName: ""
+      existingClaim: ""       # use a pre-created PVC; chart will not create or delete it
       resources: {}
 
   # Object storage (pro edition only)
@@ -211,6 +213,7 @@ seafile:
       image: "seafileltd/sdoc-server:2.0.9"
       storageSize: "5Gi"
       storageClassName: ""
+      existingClaim: ""       # use a pre-created PVC; chart will not create or delete it
       resources: {}
 
   # Seafile AI (external only — requires LLM API keys and optional GPU)
@@ -235,6 +238,7 @@ seafile:
       image: "seafileltd/seafile-md-server:13.0.16"
       storageSize: "5Gi"
       storageClassName: ""
+      existingClaim: ""       # use a pre-created PVC; chart will not create or delete it
       resources: {}
 
   # License (pro edition only)
@@ -297,6 +301,7 @@ seafile:
       javaOpts: "-Xms512m -Xmx512m"
       storageSize: "5Gi"
       storageClassName: ""
+      existingClaim: ""       # use a pre-created PVC; chart will not create or delete it
       resources:
         requests:
           memory: 1Gi

@@ -1,4 +1,5 @@
 {{- if and .Values.seafile.seadoc.enabled (eq .Values.seafile.seadoc.mode "internal") }}
+{{- if not .Values.seafile.seadoc.internal.existingClaim }}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -15,6 +16,7 @@ spec:
   resources:
     requests:
       storage: {{ .Values.seafile.seadoc.internal.storageSize }}
+{{- end }}
 ---
 apiVersion: v1
 kind: Service
@@ -92,5 +94,5 @@ spec:
       volumes:
         - name: seadoc-data
           persistentVolumeClaim:
-            claimName: {{ include "seafile.fullname" . }}-seadoc-data
+            claimName: {{ .Values.seafile.seadoc.internal.existingClaim | default (printf "%s-seadoc-data" (include "seafile.fullname" .)) }}
 {{- end }}
