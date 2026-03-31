@@ -196,7 +196,7 @@ spec:
   chart:
     spec:
       chart: seafile
-      version: "13.0.19-14"
+      version: "13.0.19-17"
       sourceRef:
         kind: HelmRepository
         name: ioanalytica-public
@@ -608,7 +608,7 @@ seafile:
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `seafile.elasticsearch.enabled` | Enable Elasticsearch for full-text search | `false` |
-| `seafile.elasticsearch.mode` | `"internal"` or `"external"` | `"external"` |
+| `seafile.elasticsearch.mode` | `"internal"` or `"external"` | `"internal"` |
 | `seafile.elasticsearch.host` | ES host (required when mode is external) | `""` |
 | `seafile.elasticsearch.port` | ES port | `9200` |
 | `seafile.elasticsearch.username` | ES username (external with auth) | `""` |

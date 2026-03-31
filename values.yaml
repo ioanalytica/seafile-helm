@@ -307,7 +307,7 @@ seafile:
   # Set to disabled (default) when not needed.
   elasticsearch:
     enabled: false
-    mode: "external"        # "internal" or "external"
+    mode: "internal"        # "internal" or "external"
     host: ""                # required when mode is external
     port: 9200
     # External ES with authentication (not used for internal mode)
