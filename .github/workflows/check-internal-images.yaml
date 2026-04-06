@@ -30,9 +30,9 @@ jobs:
           #   elasticsearch 8.15.0 tracks 8.x.y
           IMAGES=(
             "library/mariadb              12.2.2-noble  ^12\.\d+\.\d+-noble$    mariadb"
-            "dragonflydb/dragonfly        v1.26.0       ^v\d+\.\d+\.\d+$        cache.internal"
+            "dragonflydb/dragonfly        v1.27.1       ^v\d+\.\d+\.\d+$        cache.internal"
             "library/elasticsearch        8.19.13       ^8\.\d+\.\d+$           elasticsearch"
-            "seafileltd/seafile-md-server 13.0.16       ^13\.\d+\.\d+$          metadata.internal"
+            "seafileltd/seafile-md-server 13.0.20       ^13\.\d+\.\d+$          metadata.internal"
             "seafileltd/sdoc-server       2.0.9         ^2\.\d+\.\d+$           seadoc.internal"
           )
 
