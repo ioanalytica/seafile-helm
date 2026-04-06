@@ -24,24 +24,39 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Each entry: "library/IMAGE CURRENT_TAG SERIES_PATTERN LABEL"
+          # Each entry: "library/IMAGE CURRENT_TAG SERIES_PATTERN LABEL [GH_REPO]"
           #   SERIES_PATTERN: regex matching tags in the same release series
           #   e.g. mariadb 10.11 tracks 10.11.x, redis 7-alpine tracks 7.x-alpine,
           #   elasticsearch 8.15.0 tracks 8.x.y
+          #   GH_REPO (optional): owner/repo on GitHub. If set, latest tag is
+          #     fetched from the GitHub Releases API instead of Docker Hub.
+          #     Use this for images whose Docker Hub mirror is stale or absent
+          #     (e.g. dragonfly, which publishes to docker.dragonflydb.io).
           IMAGES=(
             "library/mariadb              12.2.2-noble  ^12\.\d+\.\d+-noble$    mariadb"
-            "dragonflydb/dragonfly        v1.27.1       ^v\d+\.\d+\.\d+$        cache.internal"
+            "dragonflydb/dragonfly        v1.37.2       ^v\d+\.\d+\.\d+$        cache.internal      dragonflydb/dragonfly"
             "library/elasticsearch        8.19.13       ^8\.\d+\.\d+$           elasticsearch"
             "seafileltd/seafile-md-server 13.0.20       ^13\.\d+\.\d+$          metadata.internal"
             "seafileltd/sdoc-server       2.0.9         ^2\.\d+\.\d+$           seadoc.internal"
           )
 
           for ENTRY in "${IMAGES[@]}"; do
-            read -r REPO CURRENT PATTERN LABEL <<< "$ENTRY"
+            read -r REPO CURRENT PATTERN LABEL GH_REPO <<< "$ENTRY"
             echo "=== Checking ${REPO} (current: ${CURRENT}) ==="
 
-            LATEST=$(curl -s "https://hub.docker.com/v2/repositories/${REPO}/tags/?page_size=100&ordering=last_updated" \
-              | python3 -c "
+            if [ -n "${GH_REPO:-}" ]; then
+              LATEST=$(curl -s -H "Authorization: Bearer ${GH_TOKEN}" \
+                "https://api.github.com/repos/${GH_REPO}/releases/latest" \
+                | python3 -c "
+          import sys, json, re
+          data = json.load(sys.stdin)
+          tag = data.get('tag_name', '') or ''
+          pattern = re.compile(r'${PATTERN}')
+          print(tag if pattern.match(tag) else '')
+          ")
+            else
+              LATEST=$(curl -s "https://hub.docker.com/v2/repositories/${REPO}/tags/?page_size=100&ordering=last_updated" \
+                | python3 -c "
           import sys, json, re
           data = json.load(sys.stdin)
           pattern = re.compile(r'${PATTERN}')
@@ -56,6 +71,7 @@ jobs:
           tags.sort(key=sort_key, reverse=True)
           print(tags[0] if tags else '')
           ")
+            fi
 
             echo "Latest: ${LATEST:-none}"
 

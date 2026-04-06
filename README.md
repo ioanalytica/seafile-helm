@@ -196,7 +196,7 @@ spec:
   chart:
     spec:
       chart: seafile
-      version: "13.0.20-2"
+      version: "13.0.20-3"
       sourceRef:
         kind: HelmRepository
         name: ioanalytica-public
