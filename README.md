@@ -6,8 +6,8 @@ A Helm chart for deploying [Seafile](https://www.seafile.com/) on Kubernetes. Su
 
 - Kubernetes 1.24+
 - Helm 3+
-- An external **MySQL/MariaDB** database
-- An external **Redis** or Memcached instance (or use `cache.mode: internal` to deploy Dragonfly)
+- A **MySQL/MariaDB** database — either external, or chart-deployed via `seafile.database.mode: internal`
+- A **Redis** and/or **Memcached** endpoint — either external, or chart-deployed via `seafile.cache.mode: internal` (deploys Dragonfly, which serves both protocols on a single pod)
 - For Pro edition: a valid Seafile license file
 
 ## Quick Start
