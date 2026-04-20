@@ -252,7 +252,7 @@ seafile:
     s3:
       bucket: ""
     internal:
-      image: "seafileltd/seafile-md-server:13.0.21"
+      image: "seafileltd/seafile-md-server:13.0.20"
       storageSize: "5Gi"
       storageClassName: ""
       existingClaim: ""       # use a pre-created PVC; chart will not create or delete it
