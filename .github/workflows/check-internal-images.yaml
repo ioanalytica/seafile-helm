@@ -24,25 +24,37 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Each entry: "library/IMAGE CURRENT_TAG SERIES_PATTERN LABEL [GH_REPO]"
+          # Each entry: "library/IMAGE VALUES_PATH SERIES_PATTERN LABEL [GH_REPO]"
+          #   VALUES_PATH: yq path in values.yaml whose `image:` field holds the
+          #     authoritative current tag. The tag (everything after the last
+          #     `:`) is extracted at runtime — values.yaml is the single source
+          #     of truth, so the workflow never goes out of sync.
           #   SERIES_PATTERN: regex matching tags in the same release series
-          #   e.g. mariadb 10.11 tracks 10.11.x, redis 7-alpine tracks 7.x-alpine,
-          #   elasticsearch 8.15.0 tracks 8.x.y
+          #     e.g. mariadb 10.11 tracks 10.11.x, redis 7-alpine tracks 7.x-alpine,
+          #     elasticsearch 8.15.0 tracks 8.x.y
           #   GH_REPO (optional): owner/repo on GitHub. If set, latest tag is
           #     fetched from the GitHub Releases API instead of Docker Hub.
           #     Use this for images whose Docker Hub mirror is stale or absent
           #     (e.g. dragonfly, which publishes to docker.dragonflydb.io).
           IMAGES=(
-            "library/mariadb              12.2.2-noble  ^12\.\d+\.\d+-noble$    mariadb"
-            "dragonflydb/dragonfly        v1.38.0       ^v\d+\.\d+\.\d+$        cache.internal      dragonflydb/dragonfly"
-            "library/elasticsearch        8.19.14       ^8\.\d+\.\d+$           elasticsearch"
-            "seafileltd/seafile-md-server 13.0.21       ^13\.\d+\.\d+$          metadata.internal"
-            "seafileltd/sdoc-server       2.0.9         ^2\.\d+\.\d+$           seadoc.internal"
+            "library/mariadb              .seafile.database.internal.image      ^12\.\d+\.\d+-noble$    mariadb"
+            "dragonflydb/dragonfly        .seafile.cache.internal.image         ^v\d+\.\d+\.\d+$        cache.internal      dragonflydb/dragonfly"
+            "library/elasticsearch        .seafile.elasticsearch.internal.image ^8\.\d+\.\d+$           elasticsearch"
+            "seafileltd/seafile-md-server .seafile.metadata.internal.image      ^13\.\d+\.\d+$          metadata.internal"
+            "seafileltd/sdoc-server       .seafile.seadoc.internal.image        ^2\.\d+\.\d+$           seadoc.internal"
           )
 
           for ENTRY in "${IMAGES[@]}"; do
-            read -r REPO CURRENT PATTERN LABEL GH_REPO <<< "$ENTRY"
-            echo "=== Checking ${REPO} (current: ${CURRENT}) ==="
+            read -r REPO VALUES_PATH PATTERN LABEL GH_REPO <<< "$ENTRY"
+
+            # Extract current tag from values.yaml (everything after last `:`)
+            IMAGE_REF=$(yq -r "${VALUES_PATH}" values.yaml)
+            if [ -z "$IMAGE_REF" ] || [ "$IMAGE_REF" = "null" ]; then
+              echo "=== ${REPO}: could not read ${VALUES_PATH} from values.yaml, skipping ==="
+              continue
+            fi
+            CURRENT="${IMAGE_REF##*:}"
+            echo "=== Checking ${REPO} (current: ${CURRENT}, from ${VALUES_PATH}) ==="
 
             if [ -n "${GH_REPO:-}" ]; then
               LATEST=$(curl -s -H "Authorization: Bearer ${GH_TOKEN}" \
