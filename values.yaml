@@ -170,7 +170,7 @@ seafile:
       # simultaneously, which is required because some Seafile components (e.g.
       # seahub CACHES) use Redis while others use Memcached. A single Dragonfly
       # instance replaces the need for two separate cache services.
-      image: "docker.dragonflydb.io/dragonflydb/dragonfly:v1.38.0"
+      image: "docker.dragonflydb.io/dragonflydb/dragonfly:v1.38.1"
       storageSize: "1Gi"
       storageClassName: ""
       existingClaim: ""       # use a pre-created PVC; chart will not create or delete it
@@ -314,7 +314,7 @@ seafile:
     username: ""            # optional
     password: ""            # secret - use existingSecret for production (key: ES_PASSWORD)
     internal:
-      image: "elasticsearch:8.19.14"
+      image: "elasticsearch:8.19.15"
       javaOpts: "-Xms512m -Xmx512m"
       storageSize: "5Gi"
       storageClassName: ""
