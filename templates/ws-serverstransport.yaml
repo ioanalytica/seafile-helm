@@ -1,0 +1,37 @@
+{{/*
+Traefik ServersTransport for the WebSocket sub-Ingress (notification +
+seadoc internal-mode paths).
+
+Rendered when:
+  - the WS sub-Ingress is needed (notification OR seadoc enabled in
+    internal mode)
+  - ingressClassName is nginx-traefik or traefik (the only classes that
+    can consume a Traefik CRD)
+  - websocket.serversTransport.enabled (default true)
+
+Purpose: lift Go's default HTTP-client backend-idle timeout (~90s) so
+long-lived WebSocket connections (browser ping → server every few
+minutes) don't get torn down between messages.
+
+For ingressClassName: nginx this CRD is not rendered; the nginx-style
+`proxy-read-timeout` / `proxy-send-timeout` annotations on the WS
+Ingress are interpreted natively by rke2-ingress-nginx.
+*/}}
+{{- $needsWsIngress := and .Values.seafile.ingress.enabled (or
+    (and .Values.seafile.notification.enabled (eq .Values.seafile.notification.mode "internal"))
+    (and .Values.seafile.seadoc.enabled (eq .Values.seafile.seadoc.mode "internal"))
+  ) -}}
+{{- $cls := .Values.seafile.ingress.ingressClassName | default "" -}}
+{{- if and $needsWsIngress (or (eq $cls "nginx-traefik") (eq $cls "traefik")) }}
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: {{ include "seafile.ws.serversTransportName" . }}
+  labels:
+    {{- include "seafile.labels" . | nindent 4 }}
+spec:
+  forwardingTimeouts:
+    dialTimeout: {{ .Values.seafile.ingress.websocket.dialTimeout | quote }}
+    responseHeaderTimeout: {{ .Values.seafile.ingress.websocket.idleTimeout | quote }}
+    idleConnTimeout: {{ .Values.seafile.ingress.websocket.idleTimeout | quote }}
+{{- end }}

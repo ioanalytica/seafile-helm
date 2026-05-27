@@ -31,12 +31,34 @@ seafile:
     #  - secretName: seafile-tls
     #    hosts:
     #      - seafile.example.com
-    # Annotations applied to the dedicated WebSocket ingress created for /notification
-    # and /sdoc-server (internal SeaDoc) when those features are enabled.
-    # These defaults work with nginx ingress controller; adjust for other controllers.
-    websocketAnnotations:
-      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-      nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    # Optional extra annotations applied ONLY to the WebSocket sub-Ingress
+    # (/notification + /sdoc-server). Empty by default — both Ingresses
+    # inherit `ingress.annotations` already, so you typically don't need
+    # this. Use it only for WS-specific overrides.
+    #
+    # The chart strips `cert-manager.io/*` from the WS Ingress in all
+    # cases (only the primary Ingress should drive ingress-shim Cert
+    # creation; both Ingresses share the same tls.secretName).
+    websocketAnnotations: {}
+
+    # WebSocket timeout configuration. One knob per intent, the chart
+    # picks the right enforcement per ingressClassName:
+    #   - nginx / nginx-traefik:
+    #       chart auto-injects nginx.ingress.kubernetes.io/proxy-read-timeout
+    #       and proxy-send-timeout on the WS Ingress (nginx interprets
+    #       natively; the kubernetesIngressNGINX bridge translates).
+    #   - traefik:
+    #       chart emits a Traefik ServersTransport CRD with extended
+    #       forwardingTimeouts and auto-annotates the WS Ingress with
+    #       `traefik.ingress.kubernetes.io/router.serverstransport`.
+    #
+    # idleTimeout: max idle time before backend connection is torn down.
+    # 5 minutes is plenty for any well-behaved WebSocket client that
+    # ping/pongs every 30-60s (browsers do this by default). Bump only
+    # if your client sends keep-alive sparingly.
+    websocket:
+      idleTimeout: "300s"
+      dialTimeout: "30s"
 
   # Persistent storage
   persistence:

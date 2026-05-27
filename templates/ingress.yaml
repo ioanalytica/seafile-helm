@@ -1,13 +1,15 @@
 {{- if .Values.seafile.ingress.enabled -}}
+{{- include "seafile.ingress.validateClass" . -}}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ include "seafile.fullname" . }}
   labels:
     {{- include "seafile.labels" . | nindent 4 }}
-  {{- with .Values.seafile.ingress.annotations }}
+  {{- $primaryAnn := include "seafile.ingress.primaryAnnotations" . | fromYaml }}
+  {{- if $primaryAnn }}
   annotations:
-    {{- toYaml . | nindent 4 }}
+    {{- toYaml $primaryAnn | nindent 4 }}
   {{- end }}
 spec:
   {{- if .Values.seafile.ingress.ingressClassName }}
@@ -59,9 +61,10 @@ metadata:
   name: {{ include "seafile.fullname" . }}-ws
   labels:
     {{- include "seafile.labels" . | nindent 4 }}
-  {{- with .Values.seafile.ingress.websocketAnnotations }}
+  {{- $wsAnn := include "seafile.ingress.websocketAnnotations" . | fromYaml }}
+  {{- if $wsAnn }}
   annotations:
-    {{- toYaml . | nindent 4 }}
+    {{- toYaml $wsAnn | nindent 4 }}
   {{- end }}
 spec:
   {{- if .Values.seafile.ingress.ingressClassName }}

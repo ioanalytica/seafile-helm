@@ -251,3 +251,118 @@ SeaDoc server URL: auto-derived for internal mode, user-provided for external
 {{- .Values.seafile.seadoc.url -}}
 {{- end -}}
 {{- end }}
+
+{{/*
+Validate ingress.ingressClassName when ingress.enabled. Must be one of:
+nginx, nginx-traefik, traefik. Empty fails.
+
+Class semantics for the optional WebSocket sub-Ingress (notification +
+seadoc):
+  - nginx:
+      nginx-* timeout annotations work natively against rke2-ingress-nginx.
+  - nginx-traefik:
+      Bridge provider translates nginx-* timeout annotations into its
+      internal middleware. We additionally emit a ServersTransport CRD
+      and reference it from the WS Ingress so behaviour is deterministic
+      across both serving paths.
+  - traefik:
+      nginx-* annotations are silently ignored. WebSocket connections
+      would close at the default backend idle timeout (~90s). The
+      chart-emitted ServersTransport CRD lifts that to
+      websocket.serversTransport.idleConnTimeout (default 3600s).
+
+Usage: {{ include "seafile.ingress.validateClass" . }}
+*/}}
+{{- define "seafile.ingress.validateClass" -}}
+{{- $allowed := list "nginx" "nginx-traefik" "traefik" -}}
+{{- $cls := .Values.seafile.ingress.ingressClassName | default "" -}}
+{{- if not (has $cls $allowed) -}}
+{{- fail (printf "seafile.ingress.ingressClassName is required and must be one of %v; got %q" $allowed $cls) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Annotation map for the primary Seafile Ingress.
+  - className == "traefik": strip nginx.ingress.kubernetes.io/* (the
+    native provider ignores them; leaving them is dead weight that
+    misleads operators reading the live Ingress).
+  - className == "nginx-traefik": keep nginx-* keys — the bridge
+    provider translates recognised ones (proxy-body-size,
+    whitelist-source-range, auth-url, …).
+  - className == "nginx": keep nginx-* keys — interpreted natively.
+
+Usage: {{ include "seafile.ingress.primaryAnnotations" . }}
+*/}}
+{{- define "seafile.ingress.primaryAnnotations" -}}
+{{- $in := default (dict) .Values.seafile.ingress.annotations -}}
+{{- $stripNginx := eq .Values.seafile.ingress.ingressClassName "traefik" -}}
+{{- $out := dict -}}
+{{- range $k, $v := $in -}}
+{{-   if and $stripNginx (hasPrefix "nginx.ingress.kubernetes.io/" $k) -}}
+{{-   else -}}
+{{-     $_ := set $out $k $v -}}
+{{-   end -}}
+{{- end -}}
+{{- $out | toYaml -}}
+{{- end -}}
+
+{{/*
+Annotation map for the WebSocket sub-Ingress. Built from:
+  1. `ingress.annotations` (the same base the primary Ingress uses, so
+     intent annotations like ioanalytica.com/exposure or
+     whitelist-source-range stay in sync without the user remembering to
+     duplicate them).
+  2. `ingress.websocketAnnotations` (optional WS-only overrides, merged
+     on top — rarely needed).
+  3. Per-class auto-injection of the WS-timeout enforcement annotation:
+       - nginx, nginx-traefik:
+           nginx.ingress.kubernetes.io/proxy-read-timeout  + proxy-send-timeout
+           = ingress.websocket.idleTimeout (stripped of "s" suffix —
+           nginx wants bare integer seconds).
+       - nginx-traefik, traefik:
+           traefik.ingress.kubernetes.io/router.serverstransport pointing
+           at the chart-emitted ServersTransport CRD (see
+           ws-serverstransport.yaml).
+  4. `cert-manager.io/*` is always stripped from the WS Ingress — only
+     the primary Ingress should drive ingress-shim Cert creation; both
+     Ingresses reference the same tls.secretName.
+  5. nginx.ingress.kubernetes.io/* is stripped on className == "traefik"
+     (silently ignored by the native provider).
+
+Usage: {{ include "seafile.ingress.websocketAnnotations" . }}
+*/}}
+{{- define "seafile.ingress.websocketAnnotations" -}}
+{{- $cls := .Values.seafile.ingress.ingressClassName | default "" -}}
+{{- $base := default (dict) .Values.seafile.ingress.annotations -}}
+{{- $extra := default (dict) .Values.seafile.ingress.websocketAnnotations -}}
+{{- $merged := mergeOverwrite (deepCopy $base) $extra -}}
+{{- $out := dict -}}
+{{- $stripNginx := eq $cls "traefik" -}}
+{{- range $k, $v := $merged -}}
+{{-   if hasPrefix "cert-manager.io/" $k -}}
+{{-   else if and $stripNginx (hasPrefix "nginx.ingress.kubernetes.io/" $k) -}}
+{{-   else -}}
+{{-     $_ := set $out $k $v -}}
+{{-   end -}}
+{{- end -}}
+{{- if or (eq $cls "nginx") (eq $cls "nginx-traefik") -}}
+{{-   $secs := trimSuffix "s" .Values.seafile.ingress.websocket.idleTimeout -}}
+{{-   $_ := set $out "nginx.ingress.kubernetes.io/proxy-read-timeout" $secs -}}
+{{-   $_ := set $out "nginx.ingress.kubernetes.io/proxy-send-timeout" $secs -}}
+{{- end -}}
+{{- if or (eq $cls "nginx-traefik") (eq $cls "traefik") -}}
+{{-   $stName := printf "%s@kubernetescrd" (include "seafile.ws.serversTransportName" .) -}}
+{{-   $_ := set $out "traefik.ingress.kubernetes.io/router.serverstransport" $stName -}}
+{{- end -}}
+{{- $out | toYaml -}}
+{{- end -}}
+
+{{/*
+Name of the chart-emitted Traefik ServersTransport for the WebSocket
+sub-Ingress. Referenced by both the ServersTransport itself and the
+WS Ingress' router.serverstransport annotation.
+Usage: {{ include "seafile.ws.serversTransportName" . }}
+*/}}
+{{- define "seafile.ws.serversTransportName" -}}
+{{- printf "%s-ws" (include "seafile.fullname" .) -}}
+{{- end -}}
