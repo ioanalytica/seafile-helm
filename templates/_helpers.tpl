@@ -314,15 +314,11 @@ Annotation map for the WebSocket sub-Ingress. Built from:
      duplicate them).
   2. `ingress.websocketAnnotations` (optional WS-only overrides, merged
      on top — rarely needed).
-  3. Per-class auto-injection of the WS-timeout enforcement annotation:
-       - nginx, nginx-traefik:
-           nginx.ingress.kubernetes.io/proxy-read-timeout  + proxy-send-timeout
-           = ingress.websocket.idleTimeout (stripped of "s" suffix —
-           nginx wants bare integer seconds).
-       - nginx-traefik, traefik:
-           traefik.ingress.kubernetes.io/router.serverstransport pointing
-           at the chart-emitted ServersTransport CRD (see
-           ws-serverstransport.yaml).
+  3. Per-class auto-injection of the WS-timeout enforcement annotation
+     for nginx and nginx-traefik:
+         nginx.ingress.kubernetes.io/proxy-read-timeout + proxy-send-timeout
+         = ingress.websocket.idleTimeout (stripped of "s" suffix —
+         nginx wants bare integer seconds).
   4. `cert-manager.io/*` is always stripped from the WS Ingress — only
      the primary Ingress should drive ingress-shim Cert creation; both
      Ingresses reference the same tls.secretName.
@@ -350,17 +346,12 @@ Usage: {{ include "seafile.ingress.websocketAnnotations" . }}
 {{-   $_ := set $out "nginx.ingress.kubernetes.io/proxy-read-timeout" $secs -}}
 {{-   $_ := set $out "nginx.ingress.kubernetes.io/proxy-send-timeout" $secs -}}
 {{- end -}}
-{{- if or (eq $cls "nginx-traefik") (eq $cls "traefik") -}}
-{{-   $stName := printf "%s@kubernetescrd" (include "seafile.ws.serversTransportName" .) -}}
-{{-   $_ := set $out "traefik.ingress.kubernetes.io/router.serverstransport" $stName -}}
-{{- end -}}
 {{- $out | toYaml -}}
 {{- end -}}
 
 {{/*
 Name of the chart-emitted Traefik ServersTransport for the WebSocket
-sub-Ingress. Referenced by both the ServersTransport itself and the
-WS Ingress' router.serverstransport annotation.
+sub-Ingress.
 Usage: {{ include "seafile.ws.serversTransportName" . }}
 */}}
 {{- define "seafile.ws.serversTransportName" -}}

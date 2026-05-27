@@ -1,5 +1,28 @@
 # Changelog
 
+## 13.0.21-4
+
+* **Bug fix: invalid Traefik annotation on the WebSocket Ingress.**
+  13.0.21-3 emitted
+  `traefik.ingress.kubernetes.io/router.serverstransport: <name>@kubernetescrd`
+  on the WS sub-Ingress to bind the chart-rendered ServersTransport
+  CRD. That annotation is only valid on Traefik's own `IngressRoute`
+  CRD; on a standard Kubernetes `Ingress` (which is what this chart
+  emits), Traefik's kubernetesIngress provider logs
+  `field not found, node: serverstransport` and **refuses to parse
+  the entire Ingress** — leaving the WS host completely unrouted.
+
+  Fix: the annotation is no longer emitted. The ServersTransport CRD
+  itself is still rendered (for future re-binding via the supported
+  Service-level annotation on the notification + seadoc Services) but
+  currently unbound. WebSocket streams in Traefik are pass-through
+  after the HTTP upgrade, so the default backend idle timeout (~90s)
+  is not enforced on the upgraded stream and clients with regular
+  ping/pong (notification + seadoc both ping every 30-60s) are
+  unaffected.
+
+  Same bug class as the wfm-helm 0.1.15 → 0.1.16 fix.
+
 ## 13.0.21-3
 
 * **First-class Traefik support** for the Ingress layer.
