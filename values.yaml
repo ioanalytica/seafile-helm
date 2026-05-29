@@ -48,9 +48,11 @@ seafile:
     #       and proxy-send-timeout on the WS Ingress (nginx interprets
     #       natively; the kubernetesIngressNGINX bridge translates).
     #   - traefik:
-    #       chart emits a Traefik ServersTransport CRD with extended
-    #       forwardingTimeouts and auto-annotates the WS Ingress with
-    #       `traefik.ingress.kubernetes.io/router.serverstransport`.
+    #       WebSocket streams are pass-through after the HTTP upgrade, so the
+    #       idle timeout is not enforced on the upgraded stream. A
+    #       ServersTransport CRD is rendered but currently unbound. Clients
+    #       that ping/pong regularly (notification + seadoc do, every 30-60s)
+    #       are unaffected.
     #
     # idleTimeout: max idle time before backend connection is torn down.
     # 5 minutes is plenty for any well-behaved WebSocket client that

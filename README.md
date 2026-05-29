@@ -196,7 +196,7 @@ spec:
   chart:
     spec:
       chart: seafile
-      version: "13.0.21-2"
+      version: "13.0.22-1"
       sourceRef:
         kind: HelmRepository
         name: ioanalytica-public
@@ -420,10 +420,28 @@ seafile:
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `seafile.ingress.enabled` | Enable ingress | `false` |
-| `seafile.ingress.ingressClassName` | Ingress class | `""` |
-| `seafile.ingress.annotations` | Ingress annotations | `{}` |
+| `seafile.ingress.ingressClassName` | Ingress class — **required and validated** when ingress is enabled. One of `nginx`, `nginx-traefik`, `traefik`. | `""` |
+| `seafile.ingress.annotations` | Annotations for the primary Ingress (also inherited by the WebSocket sub-Ingress) | `{}` |
 | `seafile.ingress.hosts` | Ingress host rules | see values.yaml |
 | `seafile.ingress.tls` | TLS configuration | `[]` |
+| `seafile.ingress.websocketAnnotations` | Extra annotations applied **only** to the WebSocket sub-Ingress. Rarely needed — the WS Ingress already inherits `ingress.annotations`. | `{}` |
+| `seafile.ingress.websocket.idleTimeout` | Max idle time before an idle WebSocket backend connection is torn down. Enforced per ingress class (see below). | `"300s"` |
+| `seafile.ingress.websocket.dialTimeout` | Backend dial timeout for WebSocket connections. | `"30s"` |
+
+#### Ingress classes
+
+`ingressClassName` is a required, validated field when `ingress.enabled: true`. Allowed values:
+
+- **`nginx`** — served by ingress-nginx. nginx-style annotations are interpreted natively.
+- **`nginx-traefik`** — served by Traefik's `kubernetesIngressNGINX` bridge provider. The same `kind: Ingress` manifest is emitted; the bridge translates most nginx-style annotations (`proxy-body-size`, `whitelist-source-range`, `auth-url`, …) into Traefik's middleware chain. Useful as a transition class.
+- **`traefik`** — served by Traefik's native `kubernetesIngress` provider. nginx-style annotations are ignored by Traefik and are stripped from the rendered Ingress by the chart so the live object isn't cluttered with dead annotations.
+
+#### WebSocket sub-Ingress
+
+The notification server and internal SeaDoc paths require WebSockets, so the chart emits a dedicated WebSocket sub-Ingress (`<release>-seafile-ws`). It automatically inherits `ingress.annotations`, with `cert-manager.io/*` keys stripped (only the primary Ingress drives cert issuance for the shared TLS secret). Idle-timeout enforcement depends on the class:
+
+- **`nginx` / `nginx-traefik`** — the chart auto-injects `nginx.ingress.kubernetes.io/proxy-read-timeout` and `proxy-send-timeout` (= `websocket.idleTimeout`) on the WS Ingress.
+- **`traefik`** — WebSocket streams are pass-through after the HTTP upgrade, so the backend idle timeout is not enforced on the upgraded stream. Clients that ping/pong regularly (notification and SeaDoc both ping every 30–60s) are unaffected. A `ServersTransport` CRD is rendered for future use but is currently unbound.
 
 ### Persistence
 

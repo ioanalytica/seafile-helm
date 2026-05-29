@@ -1,5 +1,14 @@
 # Changelog
 
+## 13.0.22-1
+
+* **Upgrade to Seafile 13.0.22.** `appVersion` bumped to `13.0.22`, which
+  drives the `seafileltd/seafile-mc` / `seafileltd/seafile-pro-mc` image tag.
+* Documented the Traefik ingress-class support (added in 13.0.21-3/-4) in the
+  README Ingress reference, and synced the chart version strings in `README.md`
+  and `examples/helmrelease.yaml`, which had lagged behind `Chart.yaml` since
+  13.0.21-3.
+
 ## 13.0.21-4
 
 * **Bug fix: invalid Traefik annotation on the WebSocket Ingress.**
@@ -20,8 +29,6 @@
   is not enforced on the upgraded stream and clients with regular
   ping/pong (notification + seadoc both ping every 30-60s) are
   unaffected.
-
-  Same bug class as the wfm-helm 0.1.15 → 0.1.16 fix.
 
 ## 13.0.21-3
 
