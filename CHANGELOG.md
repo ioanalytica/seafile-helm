@@ -1,5 +1,10 @@
 # Changelog
 
+## 13.0.22-2
+
+* Bump internal `elasticsearch` image to `8.19.16`.
+* Bump internal `seafile-md-server` image to `13.0.22`.
+
 ## 13.0.22-1
 
 * **Upgrade to Seafile 13.0.22.** `appVersion` bumped to `13.0.22`, which
