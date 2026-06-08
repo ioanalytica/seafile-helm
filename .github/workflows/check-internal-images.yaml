@@ -24,7 +24,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Each entry: "library/IMAGE VALUES_PATH SERIES_PATTERN LABEL [GH_REPO]"
+          # Each entry: "library/IMAGE VALUES_PATH SERIES_PATTERN [GH_REPO]"
           #   VALUES_PATH: yq path in values.yaml whose `image:` field holds the
           #     authoritative current tag. The tag (everything after the last
           #     `:`) is extracted at runtime — values.yaml is the single source
@@ -37,15 +37,15 @@ jobs:
           #     Use this for images whose Docker Hub mirror is stale or absent
           #     (e.g. dragonfly, which publishes to docker.dragonflydb.io).
           IMAGES=(
-            "library/mariadb              .seafile.database.internal.image      ^12\.\d+\.\d+-noble$    mariadb"
-            "dragonflydb/dragonfly        .seafile.cache.internal.image         ^v\d+\.\d+\.\d+$        cache.internal      dragonflydb/dragonfly"
-            "library/elasticsearch        .seafile.elasticsearch.internal.image ^8\.\d+\.\d+$           elasticsearch"
-            "seafileltd/seafile-md-server .seafile.metadata.internal.image      ^13\.\d+\.\d+$          metadata.internal"
-            "seafileltd/sdoc-server       .seafile.seadoc.internal.image        ^2\.\d+\.\d+$           seadoc.internal"
+            "library/mariadb              .seafile.database.internal.image      ^12\.\d+\.\d+-noble$"
+            "dragonflydb/dragonfly        .seafile.cache.internal.image         ^v\d+\.\d+\.\d+$        dragonflydb/dragonfly"
+            "library/elasticsearch        .seafile.elasticsearch.internal.image ^8\.\d+\.\d+$"
+            "seafileltd/seafile-md-server .seafile.metadata.internal.image      ^13\.\d+\.\d+$"
+            "seafileltd/sdoc-server       .seafile.seadoc.internal.image        ^2\.\d+\.\d+$"
           )
 
           for ENTRY in "${IMAGES[@]}"; do
-            read -r REPO VALUES_PATH PATTERN LABEL GH_REPO <<< "$ENTRY"
+            read -r REPO VALUES_PATH PATTERN GH_REPO <<< "$ENTRY"
 
             # Extract current tag from values.yaml (everything after last `:`)
             IMAGE_REF=$(yq -r "${VALUES_PATH}" values.yaml)
@@ -115,22 +115,27 @@ jobs:
               continue
             fi
 
+            # Values key as shown in the issue body: strip the leading `.`
+            # from the yq path (`.seafile.foo.internal.image` →
+            # `seafile.foo.internal.image`).
+            VALUES_KEY="${VALUES_PATH#.}"
+
             gh issue create \
               --title "$TITLE" \
               --label "dependency-update" \
               --body "$(cat <<EOF
-          A newer \`${SHORT}\` image tag has been detected on Docker Hub.
+          A newer \`${SHORT}\` image tag has been detected upstream.
 
           | | Version |
           |---|---|
           | **Current (values.yaml)** | \`${CURRENT}\` |
           | **Latest upstream** | \`${LATEST}\` |
           | **Image** | \`${SHORT}:${LATEST}\` |
-          | **Values key** | \`seafile.${LABEL}.internal.image\` |
+          | **Values key** | \`${VALUES_KEY}\` |
 
           ### Steps
-          1. Update the default image in \`values.yaml\`
-          2. Test with \`${LABEL}.mode: internal\`
+          1. Update the image tag at \`${VALUES_KEY}\` in \`values.yaml\`
+          2. Test with the internal mode enabled for this component
           3. Bump chart version and release
           EOF
           )"

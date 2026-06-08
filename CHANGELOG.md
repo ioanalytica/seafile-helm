@@ -1,5 +1,11 @@
 # Changelog
 
+## 13.0.23-1
+
+* **Upgrade to Seafile 13.0.23.** `appVersion` bumped to `13.0.23`, which
+  drives the `seafileltd/seafile-mc` / `seafileltd/seafile-pro-mc` image tag.
+* Bump internal `mariadb` image to `12.3.2-noble`.
+
 ## 13.0.22-2
 
 * Bump internal `elasticsearch` image to `8.19.16`.
