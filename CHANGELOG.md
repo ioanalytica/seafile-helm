@@ -1,5 +1,10 @@
 # Changelog
 
+## 13.0.24-1
+
+* **Upgrade to Seafile 13.0.24.** `appVersion` bumped to `13.0.24`, which
+  drives the `seafileltd/seafile-mc` / `seafileltd/seafile-pro-mc` image tag.
+
 ## 13.0.23-1
 
 * **Upgrade to Seafile 13.0.23.** `appVersion` bumped to `13.0.23`, which
