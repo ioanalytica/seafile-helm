@@ -65,6 +65,10 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      securityContext:
+        # The official elasticsearch image runs as uid/gid 1000; fsGroup makes
+        # the kubelet chown the data volume so block-storage PVs are writable.
+        fsGroup: 1000
       initContainers:
         - name: set-vm-max-map-count
           image: busybox
@@ -74,6 +78,9 @@ spec:
       containers:
         - name: elasticsearch
           image: {{ .Values.seafile.elasticsearch.internal.image }}
+          securityContext:
+            runAsUser: 1000
+            runAsNonRoot: true
           env:
             - name: discovery.type
               value: single-node

@@ -1,5 +1,22 @@
 # Changelog
 
+## 13.0.24-2
+
+* **Bug fix: internal Elasticsearch could not start on block-storage PVs
+  (Longhorn, most CSI drivers).** The ES pod ran without a pod
+  `securityContext`, so freshly provisioned ext4 volumes were mounted
+  root-owned (`755`) while the official elasticsearch image runs as uid 1000 —
+  startup failed with `AccessDeniedException` on
+  `/usr/share/elasticsearch/data/node.lock`. This went unnoticed on NFS,
+  where provisioners typically create world-writable directories and
+  `fsGroup` is ignored anyway.
+
+  Fix: the ES deployment now sets `fsGroup: 1000` at pod level (the kubelet
+  chowns the data volume on mount) and `runAsUser: 1000` /
+  `runAsNonRoot: true` on the elasticsearch container. The privileged
+  `set-vm-max-map-count` init container is unaffected and keeps running as
+  root.
+
 ## 13.0.24-1
 
 * **Upgrade to Seafile 13.0.24.** `appVersion` bumped to `13.0.24`, which
