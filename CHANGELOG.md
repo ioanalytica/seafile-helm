@@ -1,5 +1,9 @@
 # Changelog
 
+## 13.0.24-3
+
+* Bump internal `dragonfly` image to `v1.39.0`.
+
 ## 13.0.24-2
 
 * **Bug fix: internal Elasticsearch could not start on block-storage PVs
