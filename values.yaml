@@ -338,7 +338,7 @@ seafile:
     username: ""            # optional
     password: ""            # secret - use existingSecret for production (key: ES_PASSWORD)
     internal:
-      image: "elasticsearch:8.19.16"
+      image: "elasticsearch:8.19.17"
       javaOpts: "-Xms512m -Xmx512m"
       storageSize: "5Gi"
       storageClassName: ""
