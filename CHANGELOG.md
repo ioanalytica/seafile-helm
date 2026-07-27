@@ -1,5 +1,9 @@
 # Changelog
 
+## 13.0.25-3
+
+* Bump internal `elasticsearch` image to `8.19.19`.
+
 ## 13.0.25-2
 
 * Bump internal `elasticsearch` image to `8.19.18`.
