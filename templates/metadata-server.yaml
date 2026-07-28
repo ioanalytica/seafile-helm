@@ -43,6 +43,11 @@ metadata:
     {{- include "seafile.labels" . | nindent 4 }}
 spec:
   replicas: 1
+  # Single replica mounting a ReadWriteOnce volume: the default RollingUpdate surges
+  # a second pod that can never attach the volume (Multi-Attach deadlock). Recreate
+  # tears the old pod down first so the volume detaches before the new one starts.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ include "seafile.name" . }}-metadata

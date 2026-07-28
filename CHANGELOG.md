@@ -1,5 +1,22 @@
 # Changelog
 
+## 13.0.25-4
+
+* **Bug fix: single-replica components deadlocked on rollout with block-storage
+  PVs (Longhorn, most CSI drivers).** The `elasticsearch`, `seadoc`, `redis`,
+  `mariadb`, `metadata-server` and main backend Deployments each run a single
+  replica bound to a `ReadWriteOnce` volume but used the default `RollingUpdate`
+  strategy. On any pod-template change Kubernetes surged a second pod before
+  terminating the old one; that new pod could never attach the still-mounted
+  volume and hung forever with a `Multi-Attach` error (the old pod kept serving,
+  so the rollout wedged silently). This went unnoticed on NFS, where the volumes
+  are `ReadWriteMany`.
+
+  Fix: these Deployments now set `strategy.type: Recreate`, so the old pod is
+  torn down and its volume detached before the replacement starts. The
+  `deployment-frontend` (scales to multiple replicas on RWX in cluster mode) and
+  the stateless `notification-server` keep `RollingUpdate`.
+
 ## 13.0.25-3
 
 * Bump internal `elasticsearch` image to `8.19.19`.
