@@ -1,5 +1,16 @@
 # Changelog
 
+## 13.0.25-5
+
+* **Bug fix: the `13.0.25-4` `Recreate` change could not be applied to
+  already-installed releases.** Setting `strategy.type: Recreate` without also
+  clearing the `strategy.rollingUpdate` block that the Deployment controller
+  defaults on existing objects made server-side apply reject the Deployment
+  (`spec.strategy.rollingUpdate: Forbidden: may not be specified when strategy
+  type is 'Recreate'`), so Flux upgrades of existing releases failed and stalled.
+  The affected Deployments now emit `strategy.rollingUpdate: null`, which removes
+  the stale block on apply. Fresh installs are unaffected.
+
 ## 13.0.25-4
 
 * **Bug fix: single-replica components deadlocked on rollout with block-storage

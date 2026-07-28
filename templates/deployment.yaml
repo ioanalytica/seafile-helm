@@ -18,6 +18,9 @@ spec:
   # deadlock). Recreate tears the old pod down first; harmless in cluster (RWX) mode.
   strategy:
     type: Recreate
+    # Clear the controller-defaulted rollingUpdate block: server-side apply keeps
+    # the stale field otherwise and rejects it as invalid under type: Recreate.
+    rollingUpdate: null
   selector:
     matchLabels:
       {{- if .Values.seafile.cluster.enabled }}
