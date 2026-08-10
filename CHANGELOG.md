@@ -1,5 +1,9 @@
 # Changelog
 
+## 13.0.25-6
+
+* Bump internal `dragonfly` image to `v1.40.1`.
+
 ## 13.0.25-5
 
 * **Bug fix: the `13.0.25-4` `Recreate` change could not be applied to
