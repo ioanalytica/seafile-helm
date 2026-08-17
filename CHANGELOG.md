@@ -1,5 +1,9 @@
 # Changelog
 
+## 13.0.25-7
+
+* Bump internal `elasticsearch` image to `8.19.20`.
+
 ## 13.0.25-6
 
 * Bump internal `dragonfly` image to `v1.40.1`.
