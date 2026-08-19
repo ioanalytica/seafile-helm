@@ -1,5 +1,11 @@
 # Changelog
 
+## 13.0.27-1
+
+* **Upgrade to Seafile 13.0.27** (skipping 13.0.26). `appVersion` bumped to
+  `13.0.27`, which drives the `seafileltd/seafile-mc` /
+  `seafileltd/seafile-pro-mc` image tag.
+
 ## 13.0.25-7
 
 * Bump internal `elasticsearch` image to `8.19.20`.
