@@ -1,5 +1,9 @@
 # Changelog
 
+## 13.0.27-2
+
+* Bump internal `mariadb` image to `12.3.3-noble`.
+
 ## 13.0.27-1
 
 * **Upgrade to Seafile 13.0.27** (skipping 13.0.26). `appVersion` bumped to
