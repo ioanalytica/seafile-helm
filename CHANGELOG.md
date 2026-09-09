@@ -1,5 +1,10 @@
 # Changelog
 
+## 13.0.27-3
+
+* Bump internal `dragonfly` image to `v1.40.2`.
+* Bump internal `elasticsearch` image to `8.19.21`.
+
 ## 13.0.27-2
 
 * Bump internal `mariadb` image to `12.3.3-noble`.
