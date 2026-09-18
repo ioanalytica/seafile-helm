@@ -1,5 +1,10 @@
 # Changelog
 
+## 13.0.28-1
+
+* **Upgrade to Seafile 13.0.28.** `appVersion` bumped to `13.0.28`, which
+  drives the `seafileltd/seafile-mc` / `seafileltd/seafile-pro-mc` image tag.
+
 ## 13.0.27-3
 
 * Bump internal `dragonfly` image to `v1.40.2`.
