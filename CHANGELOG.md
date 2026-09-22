@@ -1,5 +1,9 @@
 # Changelog
 
+## 13.0.28-2
+
+* Bump internal `seafile-md-server` image to `13.0.28`.
+
 ## 13.0.28-1
 
 * **Upgrade to Seafile 13.0.28.** `appVersion` bumped to `13.0.28`, which
