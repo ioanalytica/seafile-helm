@@ -1,5 +1,10 @@
 # Changelog
 
+## 13.0.28-4
+
+* Bump internal `dragonfly` image to `v2.0.2`.
+* Bump internal `elasticsearch` image to `8.19.23`.
+
 ## 13.0.28-3
 
 * Bump internal `dragonfly` image to `v2.0.0`. The chart only passes
