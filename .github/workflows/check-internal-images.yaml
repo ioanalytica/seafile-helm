@@ -24,7 +24,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Each entry: "IMAGE VALUES_PATH TAG_PATTERN [GH_REPO]"
+          # Each entry: "IMAGE VALUES_PATH TAG_PATTERN [OPTION...]"
           #   VALUES_PATH: yq path in values.yaml whose `image:` field holds the
           #     authoritative current tag. The tag (everything after the last
           #     `:`) is extracted at runtime — values.yaml is the single source
@@ -33,20 +33,28 @@ jobs:
           #     `^\d+\.\d+\.\d+-noble$` for mariadb. Newer tags with the same
           #     major version are reported as updates; a newer major version is
           #     reported separately as a major upgrade, so it is never missed.
-          #   GH_REPO (optional): owner/repo on GitHub. If set, latest tag is
-          #     fetched from the GitHub Releases API instead of Docker Hub.
-          #     Use this for images whose Docker Hub mirror is stale or absent
-          #     (e.g. dragonfly, which publishes to docker.dragonflydb.io).
+          # Options:
+          #   gh=OWNER/REPO: fetch the latest tag from the GitHub Releases API
+          #     instead of Docker Hub. Use this for images whose Docker Hub
+          #     mirror is stale or absent (e.g. dragonfly, which publishes to
+          #     docker.dragonflydb.io).
+          #   max-major=N: ignore major versions above N, for images whose next
+          #     major Seafile does not support yet. Cite the source next to it.
+          #   series: the major version follows the Seafile series (companion
+          #     images published by Seafile). Its majors are reported by the
+          #     series issue of check-upstream.yaml, not here.
           #
           # Every image pinned in values.yaml must be listed here; the check
           # below fails the run when one is missing.
           IMAGES=(
             "library/mariadb                .seafile.database.internal.image      ^\d+\.\d+\.\d+-noble$"
-            "dragonflydb/dragonfly          .seafile.cache.internal.image         ^v\d+\.\d+\.\d+$        dragonflydb/dragonfly"
-            "library/elasticsearch          .seafile.elasticsearch.internal.image ^\d+\.\d+\.\d+$"
-            "seafileltd/seafile-md-server   .seafile.metadata.internal.image      ^\d+\.\d+\.\d+$"
-            "seafileltd/sdoc-server         .seafile.seadoc.internal.image        ^\d+\.\d+\.\d+$"
-            "seafileltd/notification-server .seafile.notification.internal.image  ^\d+\.\d+\.\d+$"
+            "dragonflydb/dragonfly          .seafile.cache.internal.image         ^v\d+\.\d+\.\d+$        gh=dragonflydb/dragonfly"
+            # "Seafile PE 10.0 and later only supports ElasticSearch 8.x."
+            # https://manual.seafile.com/14.0/setup/use_elasticsearch/
+            "library/elasticsearch          .seafile.elasticsearch.internal.image ^\d+\.\d+\.\d+$          max-major=8"
+            "seafileltd/seafile-md-server   .seafile.metadata.internal.image      ^\d+\.\d+\.\d+$          series"
+            "seafileltd/sdoc-server         .seafile.seadoc.internal.image        ^\d+\.\d+\.\d+$          series"
+            "seafileltd/notification-server .seafile.notification.internal.image  ^\d+\.\d+\.\d+$          series"
           )
 
           # Coverage guard: every `image:` key under an `internal:` block in
@@ -76,7 +84,16 @@ jobs:
           }
 
           for ENTRY in "${IMAGES[@]}"; do
-            read -r REPO VALUES_PATH PATTERN GH_REPO <<< "$ENTRY"
+            read -r REPO VALUES_PATH PATTERN OPTIONS <<< "$ENTRY"
+            GH_REPO="" MAX_MAJOR="" SERIES=""
+            for OPT in ${OPTIONS:-}; do
+              case "$OPT" in
+                gh=*)        GH_REPO="${OPT#gh=}" ;;
+                max-major=*) MAX_MAJOR="${OPT#max-major=}" ;;
+                series)      SERIES=yes ;;
+                *) echo "Unknown option '${OPT}' for ${REPO}" >&2; exit 1 ;;
+              esac
+            done
 
             # Extract current tag from values.yaml (everything after last `:`)
             IMAGE_REF=$(yq -r "${VALUES_PATH}" values.yaml)
@@ -87,7 +104,7 @@ jobs:
             CURRENT="${IMAGE_REF##*:}"
             echo "=== Checking ${REPO} (current: ${CURRENT}, from ${VALUES_PATH}) ==="
 
-            if [ -n "${GH_REPO:-}" ]; then
+            if [ -n "$GH_REPO" ]; then
               TAGS=$(curl -s -H "Authorization: Bearer ${GH_TOKEN}" \
                 "https://api.github.com/repos/${GH_REPO}/releases/latest" \
                 | python3 -c "import sys, json; print(json.load(sys.stdin).get('tag_name') or '')")
@@ -103,6 +120,8 @@ jobs:
           pattern = re.compile(r'${PATTERN}')
           nums = lambda tag: list(map(int, re.findall(r'\d+', tag)))
           tags = [t for t in sys.stdin.read().split() if pattern.match(t)]
+          if '${MAX_MAJOR}':
+              tags = [t for t in tags if nums(t)[0] <= int('${MAX_MAJOR}')]
           major = nums('${CURRENT}')[0]
           same = [t for t in tags if nums(t)[0] == major]
           print(max(same, key=nums, default='-'), max(tags, key=nums, default='-'))
@@ -147,6 +166,10 @@ jobs:
 
             # A newer major version is reported separately, titled by major
             # so that later releases of it don't open further issues.
+            if [ -n "$SERIES" ]; then
+              echo "Major follows the Seafile series; reported by check-upstream."
+              continue
+            fi
             NEW_MAJOR=$(python3 -c "
           import re
           nums = lambda tag: list(map(int, re.findall(r'\d+', tag)))
@@ -156,8 +179,7 @@ jobs:
               open_issue "New ${SHORT} major version ${NEW_MAJOR} available (current: ${CURRENT})" "$(cat <<EOF
           A newer **major version** of \`${SHORT}\` has been detected upstream. This is
           a major upgrade: check compatibility with the deployed Seafile version and
-          the upstream upgrade notes before bumping. For the companion images
-          published by Seafile, the major version follows the Seafile series.
+          the upstream upgrade notes before bumping.
 
           | | Version |
           |---|---|

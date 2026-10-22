@@ -47,29 +47,39 @@ jobs:
             fi
           }
 
+          # Newest Docker Hub tag of REPO matching the regex PATTERN ("-" if none).
+          newest_tag() {
+            curl -s "https://hub.docker.com/v2/repositories/$1/tags/?page_size=100&ordering=last_updated" \
+              | python3 -c "
+          import sys, json, re
+          tags = [r['name'] for r in json.load(sys.stdin)['results'] if re.fullmatch(r'$2', r['name'])]
+          print(max(tags, key=lambda v: list(map(int, re.findall(r'\d+', v))), default='-'))
+          "
+          }
+
+          # Docker Hub cannot tell betas apart: Seafile publishes them under
+          # plain x.y.z tags and even under <series>-latest. Only the
+          # changelog on the Seafile wiki labels them, e.g.
+          # "14.0.9 beta (2026-10-14)", so a new series counts as stable once
+          # the changelog lists a release of it without that label.
+          declare -A CHANGELOG=(
+            [seafile-mc]="https://plus.seafile.com/wiki/publish/seafile-wiki/5L80/"
+            [seafile-pro-mc]="https://plus.seafile.com/wiki/publish/seafile-wiki/v5D5/"
+          )
+
           # Fetch latest stable tags from Docker Hub for both editions
           # Note: CE image is "seafile-mc" on Docker Hub (not "seafile-ce-mc")
           for IMAGE in seafile-pro-mc seafile-mc; do
             echo "Checking seafileltd/${IMAGE}..."
-            # Prints two words: the newest stable tag within the current
-            # series, and the newest stable tag of any series ("-" if none).
-            # Stable means a plain x.y.z tag, without -testing/-latest suffixes.
-            read -r LATEST NEWEST <<< "$(curl -s "https://hub.docker.com/v2/repositories/seafileltd/${IMAGE}/tags/?page_size=100&ordering=last_updated" \
-              | python3 -c "
-          import sys, json, re
-          data = json.load(sys.stdin)
-          stable = [r['name'] for r in data['results'] if re.fullmatch(r'\d+\.\d+\.\d+', r['name'])]
-          key = lambda v: list(map(int, v.split('.')))
-          in_series = [v for v in stable if v.startswith('${MAJOR_MINOR}.')]
-          print(max(in_series, key=key, default='-'), max(stable, key=key, default='-'))
-          ")"
-            if [ -z "${NEWEST:-}" ]; then
+            LATEST=$(newest_tag "seafileltd/${IMAGE}" "${MAJOR_MINOR//./\\.}\.\d+")
+            NEWEST=$(newest_tag "seafileltd/${IMAGE}" '\d+\.\d+\.\d+')
+            if [ -z "$NEWEST" ] || [ "$NEWEST" = "-" ]; then
               echo "Could not read tags for seafileltd/${IMAGE} from Docker Hub" >&2
               exit 1
             fi
 
-            echo "Latest stable ${IMAGE} in ${MAJOR_MINOR}: ${LATEST}"
-            echo "Latest stable ${IMAGE} overall: ${NEWEST}"
+            echo "Latest ${IMAGE} in ${MAJOR_MINOR}: ${LATEST}"
+            echo "Latest ${IMAGE} overall: ${NEWEST}"
 
             if [ "$LATEST" != "-" ] && [ "$LATEST" != "$CURRENT" ]; then
               # Check version is actually newer
@@ -98,30 +108,64 @@ jobs:
             fi
 
             # A newer series is a major upgrade: the patch check above never
-            # sees it, so report it separately. The title names the series,
-            # not the patch release, so later patches don't open new issues.
-            [ "$NEWEST" = "-" ] && continue
+            # sees it, so report it separately once it is stable. The title
+            # names the series, so later patches don't open new issues.
             NEWEST_SERIES=$(echo "$NEWEST" | grep -oP '^\d+\.\d+')
             NEW_SERIES=$(python3 -c "
           print('yes' if list(map(int, '${NEWEST_SERIES}'.split('.'))) > list(map(int, '${MAJOR_MINOR}'.split('.'))) else 'no')
           ")
-            if [ "$NEW_SERIES" = "yes" ]; then
-              open_issue "New Seafile series ${NEWEST_SERIES} available (${IMAGE})" "$(cat <<EOF
-          A new stable Seafile **series** has been detected on Docker Hub. This is a
-          major upgrade: the chart only tracks patch releases of \`${MAJOR_MINOR}\` until
-          it is migrated.
+            [ "$NEW_SERIES" = "yes" ] || continue
+
+            # Prints the newest stable release of the series, "beta" when
+            # the changelog lists only betas of it, or "-" when it does not
+            # list the series yet. Fails when the page yields no entries.
+            STATUS=$(curl -fsSL "${CHANGELOG[$IMAGE]}" | python3 -c "
+          import sys, re, html
+          text = html.unescape(re.sub(r'<[^>]+>', ' ', sys.stdin.read()))
+          entries = re.findall(r'\b(\d+\.\d+\.\d+)( beta)? \(\d{4}-\d\d-\d\d\)', re.sub(r'\s+', ' ', text))
+          if not entries:
+              sys.exit('No release entries found in the changelog; has its format changed?')
+          series = [(v, beta) for v, beta in entries if v.startswith('${NEWEST_SERIES}.')]
+          stable = [v for v, beta in series if not beta]
+          key = lambda v: list(map(int, v.split('.')))
+          print(max(stable, key=key) if stable else ('beta' if series else '-'))
+          ")
+            case "$STATUS" in
+              beta) echo "Series ${NEWEST_SERIES} is beta only per the changelog; not reporting yet."; continue ;;
+              -)    echo "Series ${NEWEST_SERIES} is not in the changelog yet; not reporting yet."; continue ;;
+            esac
+            echo "Series ${NEWEST_SERIES} is stable per the changelog: ${STATUS}"
+
+            # Companion images published by Seafile move with the series, so
+            # they are reported here rather than as separate major updates.
+            SERIES_MAJOR="${NEWEST_SERIES%%.*}"
+            MD=$(newest_tag seafileltd/seafile-md-server "${SERIES_MAJOR}\.\d+\.\d+")
+            NOTIFY=$(newest_tag seafileltd/notification-server "${SERIES_MAJOR}\.\d+\.\d+")
+            SDOC=$(newest_tag seafileltd/sdoc-server '\d+\.\d+\.\d+')
+
+            open_issue "New Seafile series ${NEWEST_SERIES} available (${IMAGE})" "$(cat <<EOF
+          A new stable Seafile **series** is out: the changelog lists \`${STATUS}\`
+          as a stable release (${CHANGELOG[$IMAGE]}). This is a major upgrade: the
+          chart only tracks patch releases of \`${MAJOR_MINOR}\` until it is migrated.
 
           | | Version |
           |---|---|
           | **Current chart appVersion** | \`${CURRENT}\` |
-          | **Newest stable release** | \`${NEWEST}\` |
-          | **Image** | \`seafileltd/${IMAGE}:${NEWEST}\` |
+          | **Newest stable release** | \`${STATUS}\` |
+          | **Image** | \`seafileltd/${IMAGE}:${STATUS}\` |
+
+          Newest companion images on Docker Hub (verify pairing in the changelog):
+
+          | Image | Tag |
+          |---|---|
+          | \`seafileltd/seafile-md-server\` | \`${MD}\` |
+          | \`seafileltd/notification-server\` | \`${NOTIFY}\` |
+          | \`seafileltd/sdoc-server\` | \`${SDOC}\` |
 
           ### Steps
           1. Read the Seafile ${NEWEST_SERIES} upgrade notes and changelog
           2. Migrate the chart (config changes, companion images, new services)
-          3. Test on a dev instance, then release as \`${NEWEST}-1\`
+          3. Test on a dev instance, then release as \`${STATUS}-1\`
           EOF
           )" --assignee ioanalytica
-            fi
           done
