@@ -24,25 +24,56 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Each entry: "library/IMAGE VALUES_PATH SERIES_PATTERN [GH_REPO]"
+          # Each entry: "IMAGE VALUES_PATH TAG_PATTERN [GH_REPO]"
           #   VALUES_PATH: yq path in values.yaml whose `image:` field holds the
           #     authoritative current tag. The tag (everything after the last
           #     `:`) is extracted at runtime — values.yaml is the single source
           #     of truth, so the workflow never goes out of sync.
-          #   SERIES_PATTERN: regex matching tags in the same release series
-          #     e.g. mariadb 10.11 tracks 10.11.x, redis 7-alpine tracks 7.x-alpine,
-          #     elasticsearch 8.15.0 tracks 8.x.y
+          #   TAG_PATTERN: regex matching stable tags of any version, e.g.
+          #     `^\d+\.\d+\.\d+-noble$` for mariadb. Newer tags with the same
+          #     major version are reported as updates; a newer major version is
+          #     reported separately as a major upgrade, so it is never missed.
           #   GH_REPO (optional): owner/repo on GitHub. If set, latest tag is
           #     fetched from the GitHub Releases API instead of Docker Hub.
           #     Use this for images whose Docker Hub mirror is stale or absent
           #     (e.g. dragonfly, which publishes to docker.dragonflydb.io).
+          #
+          # Every image pinned in values.yaml must be listed here; the check
+          # below fails the run when one is missing.
           IMAGES=(
-            "library/mariadb              .seafile.database.internal.image      ^12\.\d+\.\d+-noble$"
-            "dragonflydb/dragonfly        .seafile.cache.internal.image         ^v\d+\.\d+\.\d+$        dragonflydb/dragonfly"
-            "library/elasticsearch        .seafile.elasticsearch.internal.image ^8\.\d+\.\d+$"
-            "seafileltd/seafile-md-server .seafile.metadata.internal.image      ^13\.\d+\.\d+$"
-            "seafileltd/sdoc-server       .seafile.seadoc.internal.image        ^2\.\d+\.\d+$"
+            "library/mariadb                .seafile.database.internal.image      ^\d+\.\d+\.\d+-noble$"
+            "dragonflydb/dragonfly          .seafile.cache.internal.image         ^v\d+\.\d+\.\d+$        dragonflydb/dragonfly"
+            "library/elasticsearch          .seafile.elasticsearch.internal.image ^\d+\.\d+\.\d+$"
+            "seafileltd/seafile-md-server   .seafile.metadata.internal.image      ^\d+\.\d+\.\d+$"
+            "seafileltd/sdoc-server         .seafile.seadoc.internal.image        ^\d+\.\d+\.\d+$"
+            "seafileltd/notification-server .seafile.notification.internal.image  ^\d+\.\d+\.\d+$"
           )
+
+          # Coverage guard: every `image:` key under an `internal:` block in
+          # values.yaml must be tracked above.
+          TRACKED=$(printf '%s\n' "${IMAGES[@]}" | awk '{print $2}' | sort)
+          PINNED=$(yq -r '.. | select(tag == "!!map" and has("internal")) | path | "." + join(".") + ".internal.image"' values.yaml | sort)
+          UNTRACKED=$(comm -13 <(echo "$TRACKED") <(echo "$PINNED"))
+          if [ -n "$UNTRACKED" ]; then
+            echo "Pinned images not tracked by this workflow:" >&2
+            echo "$UNTRACKED" >&2
+            exit 1
+          fi
+
+          # Opens an issue unless an open one with the same title exists.
+          # Extra arguments are passed through to `gh issue create`.
+          open_issue() {
+            local title="$1" body="$2"
+            shift 2
+            local existing
+            existing=$(gh issue list --search "\"${title}\" in:title" --state open --json number --jq length)
+            if [ "$existing" = "0" ]; then
+              gh issue create --title "$title" --label "dependency-update" --body "$body" "$@"
+              echo "Created issue: ${title}"
+            else
+              echo "Issue already exists: ${title}"
+            fi
+          }
 
           for ENTRY in "${IMAGES[@]}"; do
             read -r REPO VALUES_PATH PATTERN GH_REPO <<< "$ENTRY"
@@ -57,73 +88,44 @@ jobs:
             echo "=== Checking ${REPO} (current: ${CURRENT}, from ${VALUES_PATH}) ==="
 
             if [ -n "${GH_REPO:-}" ]; then
-              LATEST=$(curl -s -H "Authorization: Bearer ${GH_TOKEN}" \
+              TAGS=$(curl -s -H "Authorization: Bearer ${GH_TOKEN}" \
                 "https://api.github.com/repos/${GH_REPO}/releases/latest" \
-                | python3 -c "
-          import sys, json, re
-          data = json.load(sys.stdin)
-          tag = data.get('tag_name', '') or ''
-          pattern = re.compile(r'${PATTERN}')
-          print(tag if pattern.match(tag) else '')
-          ")
+                | python3 -c "import sys, json; print(json.load(sys.stdin).get('tag_name') or '')")
             else
-              LATEST=$(curl -s "https://hub.docker.com/v2/repositories/${REPO}/tags/?page_size=100&ordering=last_updated" \
-                | python3 -c "
-          import sys, json, re
-          data = json.load(sys.stdin)
+              TAGS=$(curl -s "https://hub.docker.com/v2/repositories/${REPO}/tags/?page_size=100&ordering=last_updated" \
+                | python3 -c "import sys, json; print('\n'.join(r['name'] for r in json.load(sys.stdin)['results']))")
+            fi
+
+            # Prints two words: the newest matching tag with the current major
+            # version, and the newest matching tag of any major ("-" if none).
+            read -r LATEST NEWEST <<< "$(echo "$TAGS" | python3 -c "
+          import sys, re
           pattern = re.compile(r'${PATTERN}')
-          tags = [r['name'] for r in data['results'] if pattern.match(r['name'])]
+          nums = lambda tag: list(map(int, re.findall(r'\d+', tag)))
+          tags = [t for t in sys.stdin.read().split() if pattern.match(t)]
+          major = nums('${CURRENT}')[0]
+          same = [t for t in tags if nums(t)[0] == major]
+          print(max(same, key=nums, default='-'), max(tags, key=nums, default='-'))
+          ")"
 
-          def sort_key(tag):
-              # Extract numeric parts for sorting (strip non-numeric suffixes like -alpine)
-              import re as _re
-              nums = _re.findall(r'\d+', tag)
-              return list(map(int, nums))
-
-          tags.sort(key=sort_key, reverse=True)
-          print(tags[0] if tags else '')
-          ")
-            fi
-
-            echo "Latest: ${LATEST:-none}"
-
-            if [ -z "$LATEST" ] || [ "$LATEST" = "$CURRENT" ]; then
-              echo "Up to date."
-              continue
-            fi
-
-            # Compare numeric parts to determine if newer
-            NEWER=$(python3 -c "
-          import re
-          def nums(tag):
-              return list(map(int, re.findall(r'\d+', tag)))
-          print('yes' if nums('${LATEST}') > nums('${CURRENT}') else 'no')
-          ")
-
-            if [ "$NEWER" != "yes" ]; then
-              echo "Not newer, skipping."
-              continue
-            fi
+            echo "Latest with same major: ${LATEST}"
+            echo "Latest overall: ${NEWEST}"
 
             # Short name for the image (e.g. "mariadb", "redis", "elasticsearch")
             SHORT=${REPO#library/}
-            TITLE="New ${SHORT} image: ${LATEST} (current: ${CURRENT})"
-
-            EXISTING=$(gh issue list --search "\"${TITLE}\" in:title" --state open --json number --jq length)
-            if [ "$EXISTING" != "0" ]; then
-              echo "Issue already exists: ${TITLE}"
-              continue
-            fi
-
             # Values key as shown in the issue body: strip the leading `.`
             # from the yq path (`.seafile.foo.internal.image` →
             # `seafile.foo.internal.image`).
             VALUES_KEY="${VALUES_PATH#.}"
 
-            gh issue create \
-              --title "$TITLE" \
-              --label "dependency-update" \
-              --body "$(cat <<EOF
+            NEWER=$(python3 -c "
+          import re
+          def nums(tag):
+              return list(map(int, re.findall(r'\d+', tag)))
+          print('yes' if '${LATEST}' != '-' and nums('${LATEST}') > nums('${CURRENT}') else 'no')
+          ")
+            if [ "$NEWER" = "yes" ]; then
+              open_issue "New ${SHORT} image: ${LATEST} (current: ${CURRENT})" "$(cat <<EOF
           A newer \`${SHORT}\` image tag has been detected upstream.
 
           | | Version |
@@ -139,5 +141,31 @@ jobs:
           3. Bump chart version and release
           EOF
           )"
-            echo "Created issue: ${TITLE}"
+            else
+              echo "No newer tag with the same major version."
+            fi
+
+            # A newer major version is reported separately, titled by major
+            # so that later releases of it don't open further issues.
+            NEW_MAJOR=$(python3 -c "
+          import re
+          nums = lambda tag: list(map(int, re.findall(r'\d+', tag)))
+          print(nums('${NEWEST}')[0] if '${NEWEST}' != '-' and nums('${NEWEST}')[0] > nums('${CURRENT}')[0] else '')
+          ")
+            if [ -n "$NEW_MAJOR" ]; then
+              open_issue "New ${SHORT} major version ${NEW_MAJOR} available (current: ${CURRENT})" "$(cat <<EOF
+          A newer **major version** of \`${SHORT}\` has been detected upstream. This is
+          a major upgrade: check compatibility with the deployed Seafile version and
+          the upstream upgrade notes before bumping. For the companion images
+          published by Seafile, the major version follows the Seafile series.
+
+          | | Version |
+          |---|---|
+          | **Current (values.yaml)** | \`${CURRENT}\` |
+          | **Newest upstream** | \`${NEWEST}\` |
+          | **Image** | \`${SHORT}:${NEWEST}\` |
+          | **Values key** | \`${VALUES_KEY}\` |
+          EOF
+          )" --assignee ioanalytica
+            fi
           done

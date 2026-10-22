@@ -32,25 +32,46 @@ jobs:
           MAJOR_MINOR=$(echo "$CURRENT" | grep -oP '^\d+\.\d+')
           echo "Tracking series: $MAJOR_MINOR"
 
+          # Opens an issue unless an open one with the same title exists.
+          # Extra arguments are passed through to `gh issue create`.
+          open_issue() {
+            local title="$1" body="$2"
+            shift 2
+            local existing
+            existing=$(gh issue list --search "\"${title}\" in:title" --state open --json number --jq length)
+            if [ "$existing" = "0" ]; then
+              gh issue create --title "$title" --label "upstream-release" --body "$body" "$@"
+              echo "Created issue: ${title}"
+            else
+              echo "Issue already exists: ${title}"
+            fi
+          }
+
           # Fetch latest stable tags from Docker Hub for both editions
           # Note: CE image is "seafile-mc" on Docker Hub (not "seafile-ce-mc")
           for IMAGE in seafile-pro-mc seafile-mc; do
             echo "Checking seafileltd/${IMAGE}..."
-            LATEST=$(curl -s "https://hub.docker.com/v2/repositories/seafileltd/${IMAGE}/tags/?page_size=100&ordering=last_updated" \
+            # Prints two words: the newest stable tag within the current
+            # series, and the newest stable tag of any series ("-" if none).
+            # Stable means a plain x.y.z tag, without -testing/-latest suffixes.
+            read -r LATEST NEWEST <<< "$(curl -s "https://hub.docker.com/v2/repositories/seafileltd/${IMAGE}/tags/?page_size=100&ordering=last_updated" \
               | python3 -c "
-          import sys, json
+          import sys, json, re
           data = json.load(sys.stdin)
-          # Filter: same major.minor, no suffix like -testing/-arm-testing/-latest
-          import re
-          pattern = re.compile(r'^${MAJOR_MINOR}\.\d+$')
-          versions = [r['name'] for r in data['results'] if pattern.match(r['name'])]
-          versions.sort(key=lambda v: list(map(int, v.split('.'))), reverse=True)
-          print(versions[0] if versions else '')
-          ")
+          stable = [r['name'] for r in data['results'] if re.fullmatch(r'\d+\.\d+\.\d+', r['name'])]
+          key = lambda v: list(map(int, v.split('.')))
+          in_series = [v for v in stable if v.startswith('${MAJOR_MINOR}.')]
+          print(max(in_series, key=key, default='-'), max(stable, key=key, default='-'))
+          ")"
+            if [ -z "${NEWEST:-}" ]; then
+              echo "Could not read tags for seafileltd/${IMAGE} from Docker Hub" >&2
+              exit 1
+            fi
 
-            echo "Latest stable ${IMAGE}: ${LATEST:-none}"
+            echo "Latest stable ${IMAGE} in ${MAJOR_MINOR}: ${LATEST}"
+            echo "Latest stable ${IMAGE} overall: ${NEWEST}"
 
-            if [ -n "$LATEST" ] && [ "$LATEST" != "$CURRENT" ]; then
+            if [ "$LATEST" != "-" ] && [ "$LATEST" != "$CURRENT" ]; then
               # Check version is actually newer
               NEWER=$(python3 -c "
           current = list(map(int, '${CURRENT}'.split('.')))
@@ -58,15 +79,7 @@ jobs:
           print('yes' if latest > current else 'no')
           ")
               if [ "$NEWER" = "yes" ]; then
-                TITLE="Upstream Seafile ${LATEST} released (${IMAGE})"
-
-                # Don't create duplicate issues
-                EXISTING=$(gh issue list --search "\"${TITLE}\" in:title" --state open --json number --jq length)
-                if [ "$EXISTING" = "0" ]; then
-                  gh issue create \
-                    --title "$TITLE" \
-                    --label "upstream-release" \
-                    --body "$(cat <<EOF
+                open_issue "Upstream Seafile ${LATEST} released (${IMAGE})" "$(cat <<EOF
           A new Seafile version has been detected on Docker Hub.
 
           | | Version |
@@ -81,10 +94,34 @@ jobs:
           3. Test, tag, and release
           EOF
           )"
-                  echo "Created issue: ${TITLE}"
-                else
-                  echo "Issue already exists: ${TITLE}"
-                fi
               fi
+            fi
+
+            # A newer series is a major upgrade: the patch check above never
+            # sees it, so report it separately. The title names the series,
+            # not the patch release, so later patches don't open new issues.
+            [ "$NEWEST" = "-" ] && continue
+            NEWEST_SERIES=$(echo "$NEWEST" | grep -oP '^\d+\.\d+')
+            NEW_SERIES=$(python3 -c "
+          print('yes' if list(map(int, '${NEWEST_SERIES}'.split('.'))) > list(map(int, '${MAJOR_MINOR}'.split('.'))) else 'no')
+          ")
+            if [ "$NEW_SERIES" = "yes" ]; then
+              open_issue "New Seafile series ${NEWEST_SERIES} available (${IMAGE})" "$(cat <<EOF
+          A new stable Seafile **series** has been detected on Docker Hub. This is a
+          major upgrade: the chart only tracks patch releases of \`${MAJOR_MINOR}\` until
+          it is migrated.
+
+          | | Version |
+          |---|---|
+          | **Current chart appVersion** | \`${CURRENT}\` |
+          | **Newest stable release** | \`${NEWEST}\` |
+          | **Image** | \`seafileltd/${IMAGE}:${NEWEST}\` |
+
+          ### Steps
+          1. Read the Seafile ${NEWEST_SERIES} upgrade notes and changelog
+          2. Migrate the chart (config changes, companion images, new services)
+          3. Test on a dev instance, then release as \`${NEWEST}-1\`
+          EOF
+          )" --assignee ioanalytica
             fi
           done
