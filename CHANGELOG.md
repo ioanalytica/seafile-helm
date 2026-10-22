@@ -1,5 +1,13 @@
 # Changelog
 
+## 13.0.28-5
+
+* Bump internal `notification-server` image to `13.0.21` (was `13.0.10`).
+* Version tracking now covers every pinned image and reports new major
+  versions and new Seafile series as separate issues. Previously it only
+  watched patch releases of the current series, and `notification-server`
+  was not tracked at all.
+
 ## 13.0.28-4
 
 * Bump internal `dragonfly` image to `v2.0.2`.

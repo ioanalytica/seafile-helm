@@ -231,7 +231,7 @@ seafile:
     mode: "internal"          # "internal" or "external"
     url: ""                   # override auto-derived public URL if needed
     internal:
-      image: "seafileltd/notification-server:13.0.10"
+      image: "seafileltd/notification-server:13.0.21"
       resources: {}
 
   # SeaDoc - collaborative document editor
