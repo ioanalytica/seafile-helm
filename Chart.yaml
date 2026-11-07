@@ -2,8 +2,8 @@ apiVersion: v2
 name: seafile
 description: Helm chart for Seafile - Pro and Community Edition
 type: application
-version: "13.0.28-5"
-appVersion: "13.0.28"
+version: "13.0.29-1"
+appVersion: "13.0.29"
 home: https://ioanalytica.com
 sources:
   - https://github.com/ioanalytica/seafile-helm

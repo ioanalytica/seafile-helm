@@ -1,5 +1,16 @@
 # Changelog
 
+## 13.0.29-1
+
+* **Upgrade to Seafile 13.0.29.** `appVersion` bumped to `13.0.29`, which
+  drives the `seafileltd/seafile-mc` / `seafileltd/seafile-pro-mc` image tag.
+  Security release: fixes for XSS, an API SQL injection, SSRF in the
+  Markdown-to-SeaDoc conversion, privilege bypass and unauthorized access.
+  No configuration or schema changes.
+* Bump internal `notification-server` image to `13.0.29` (was `13.0.21`).
+* Fix `examples/helmrelease-dev.yaml`: drop the `image.repository` override,
+  which pointed at an image that does not exist on Docker Hub.
+
 ## 13.0.28-5
 
 * Bump internal `notification-server` image to `13.0.21` (was `13.0.10`).

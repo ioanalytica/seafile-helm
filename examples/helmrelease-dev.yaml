@@ -28,9 +28,6 @@ spec:
       edition: "ce"
       initMode: true
 
-      image:
-        repository: seafileltd/seafile-ce-mc
-
       existingSecret: "seafile-secret"
 
       server:
