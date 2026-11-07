@@ -208,7 +208,7 @@ spec:
 
 ### Development (from Git)
 
-Pull the chart directly from the `develop` branch:
+Pull the chart directly from the `main` branch:
 
 ```yaml
 apiVersion: source.toolkit.fluxcd.io/v1
@@ -220,7 +220,7 @@ spec:
   interval: 1m
   url: https://github.com/ioanalytica/seafile-helm
   ref:
-    branch: develop
+    branch: main
 ---
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
