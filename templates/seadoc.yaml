@@ -88,6 +88,12 @@ spec:
             # Override SEADOC_SERVER_URL to point to itself (the auto-derived URL)
             - name: SEADOC_SERVER_URL
               value: {{ include "seafile.seadoc.url" . | quote }}
+            {{- with .Values.seafile.seadoc.internal.trustProxy }}
+            # Lets the per-client rate limit see the client address instead
+            # of the proxy in front of the server.
+            - name: TRUST_PROXY
+              value: {{ . | quote }}
+            {{- end }}
           ports:
             - name: http
               containerPort: 80

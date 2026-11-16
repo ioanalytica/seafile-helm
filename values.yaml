@@ -244,7 +244,19 @@ seafile:
     mode: "internal"          # "internal" or "external"
     url: ""                   # required when mode is external
     internal:
-      image: "seafileltd/sdoc-server:2.0.9"
+      image: "seafileltd/sdoc-server:2.0.13"
+      # Proxies whose X-Forwarded-For header sdoc-server trusts, passed as
+      # TRUST_PROXY: a comma-separated list of IPs, CIDRs or the names
+      # loopback, linklocal and uniquelocal.
+      # Since 2.0.13 sdoc-server rate-limits its HTTP API per client IP
+      # (600 requests per 60 seconds, HTTP 429 above that). The image runs its
+      # own nginx in front of the server, so without this setting every request
+      # appears to come from 127.0.0.1 and all users share that one limit.
+      # The default trusts that nginx and an ingress controller on a private
+      # address, so the limit applies per client. Narrow it to your ingress
+      # controller's pod CIDR if clients reach the ingress from private
+      # addresses themselves. Set to "" to keep the upstream default.
+      trustProxy: "loopback, uniquelocal"
       storageSize: "5Gi"
       storageClassName: ""
       existingClaim: ""       # use a pre-created PVC; chart will not create or delete it
@@ -338,7 +350,7 @@ seafile:
     username: ""            # optional
     password: ""            # secret - use existingSecret for production (key: ES_PASSWORD)
     internal:
-      image: "elasticsearch:8.19.23"
+      image: "elasticsearch:8.19.25"
       javaOpts: "-Xms512m -Xmx512m"
       storageSize: "5Gi"
       storageClassName: ""

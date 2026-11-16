@@ -1,5 +1,21 @@
 # Changelog
 
+## 13.0.29-2
+
+* Bump internal `sdoc-server` image to `2.0.13` (was `2.0.9`). Upstream
+  hardened the server: prepared SQL statements, stricter validation of
+  Seahub API requests and a per-client HTTP rate limit (600 requests per
+  60 seconds). `2.0.10` and `2.0.11` were skipped because they were
+  published for `amd64` only; `2.0.13` is multi-arch again.
+* New value `seafile.seadoc.internal.trustProxy` (default
+  `"loopback, uniquelocal"`), passed to the SeaDoc server as `TRUST_PROXY`.
+  The image runs its own nginx in front of the server, so without it every
+  request counts against one shared rate limit and users receive HTTP 429
+  once the instance as a whole exceeds it. Set it to `""` to keep the
+  upstream default.
+* Bump internal `elasticsearch` image to `8.19.25` (was `8.19.23`).
+  `8.19.24` contains security fixes.
+
 ## 13.0.29-1
 
 * **Upgrade to Seafile 13.0.29.** `appVersion` bumped to `13.0.29`, which

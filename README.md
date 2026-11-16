@@ -196,7 +196,7 @@ spec:
   chart:
     spec:
       chart: seafile
-      version: "13.0.29-1"
+      version: "13.0.29-2"
       sourceRef:
         kind: HelmRepository
         name: ioanalytica-public
@@ -599,6 +599,7 @@ seafile:
 | `seafile.notification.url` | Notification server URL (required when enabled) | `""` |
 | `seafile.seadoc.enabled` | Enable SeaDoc | `false` |
 | `seafile.seadoc.url` | SeaDoc server URL (required when enabled) | `""` |
+| `seafile.seadoc.internal.trustProxy` | Proxies whose `X-Forwarded-For` the internal SeaDoc server trusts, so its HTTP rate limit applies per client (`""` keeps the upstream default) | `"loopback, uniquelocal"` |
 | `seafile.ai.enabled` | Enable Seafile AI | `false` |
 | `seafile.ai.url` | AI server URL (required when enabled) | `""` |
 | `seafile.metadata.fileCountLimit` | Metadata file count limit | `100000` |
