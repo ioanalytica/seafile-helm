@@ -1,5 +1,22 @@
 # Changelog
 
+## 13.0.29-3
+
+* Bump internal `sdoc-server` image to `2.0.14` (was `2.0.13`). Security
+  fixes: HTTP document access and publish requests are bound to the
+  document the token was issued for, and WebSocket connections are checked
+  for token expiry on every incoming event.
+* Bump internal `dragonfly` image to `v2.1.0` (was `v2.0.2`). **Licence
+  change:** starting with 2.1, Dragonfly is released under the Dragonfly
+  Source-Available License (DSAL) instead of BUSL-1.1. Among other terms it
+  limits production use to 100 vCPUs in aggregate; review the
+  [licence](https://github.com/dragonflydb/dragonfly/blob/v2.1.0/LICENSE.md)
+  before upgrading. To stay on the previous licence, set
+  `seafile.cache.internal.image` to
+  `docker.dragonflydb.io/dragonflydb/dragonfly:v2.0.2`.
+  The flags passed by the chart are unchanged. Without `--bind`, Dragonfly
+  now listens on IPv4 and IPv6 on dual-stack hosts.
+
 ## 13.0.29-2
 
 * Bump internal `sdoc-server` image to `2.0.13` (was `2.0.9`). Upstream
