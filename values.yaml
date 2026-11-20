@@ -244,7 +244,7 @@ seafile:
     mode: "internal"          # "internal" or "external"
     url: ""                   # required when mode is external
     internal:
-      image: "seafileltd/sdoc-server:2.0.13"
+      image: "seafileltd/sdoc-server:2.0.14"
       # Proxies whose X-Forwarded-For header sdoc-server trusts, passed as
       # TRUST_PROXY: a comma-separated list of IPs, CIDRs or the names
       # loopback, linklocal and uniquelocal.
