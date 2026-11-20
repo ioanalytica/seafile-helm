@@ -1,5 +1,18 @@
 # Changelog
 
+## 13.0.30-1
+
+* **Upgrade to Seafile 13.0.30.** `appVersion` bumped to `13.0.30`, which
+  drives the `seafileltd/seafile-mc` / `seafileltd/seafile-pro-mc` image tag.
+  Upstream has not published release notes yet. The source changes are
+  hardening and bug fixes: the file server validates the parent directory
+  on block uploads and normalizes paths, Seahub checks the OnlyOffice JWT
+  and WOPI locks and updates its SeaDoc integration. No configuration or
+  schema changes.
+* The companion images are unchanged: upstream published no `13.0.30` tag
+  for `notification-server` (stays at `13.0.29`) or `seafile-md-server`
+  (stays at `13.0.28`).
+
 ## 13.0.29-3
 
 * Bump internal `sdoc-server` image to `2.0.14` (was `2.0.13`). Security
