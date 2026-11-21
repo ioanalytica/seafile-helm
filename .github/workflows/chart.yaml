@@ -1,0 +1,87 @@
+name: Chart
+
+# Lints the chart and renders it on every pull request: with the values of
+# both examples, and with every optional part switched on (Pro edition,
+# internal database and cache, notification server, SeaDoc, metadata
+# server, Elasticsearch, AI, LDAP, ingress, cluster mode). A template that
+# no longer renders, or a value an example sets that the chart refuses,
+# fails here instead of in a deployment. No paths filter: the job is a
+# required check, and a filtered workflow would leave it pending.
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  chart:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    env:
+      # renovate: datasource=github-releases depName=helm/helm
+      HELM_VERSION: v4.3.2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Pinned: without a version the action asks the GitHub API for the
+      # latest release on every run.
+      - name: Set up Helm
+        uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Values of the examples and with every optional part
+        run: |
+          mkdir -p "$RUNNER_TEMP/values"
+          for example in examples/helmrelease.yaml examples/helmrelease-dev.yaml; do
+            yq '.spec.values' "$example" >"$RUNNER_TEMP/values/$(basename "$example")"
+          done
+          cat >"$RUNNER_TEMP/values/everything.yaml" <<'VALUES'
+          seafile:
+            edition: pro
+            server:
+              hostname: seafile.example.com
+            admin:
+              email: admin@example.com
+            database:
+              mode: internal
+            cache:
+              mode: internal
+            ingress:
+              enabled: true
+              ingressClassName: traefik
+            notification:
+              enabled: true
+            seadoc:
+              enabled: true
+            metadata:
+              enabled: true
+            elasticsearch:
+              enabled: true
+            ai:
+              enabled: true
+              url: http://seafile-ai.example.com
+            seahub:
+              ldap:
+                enabled: true
+                configMap: seafile-ldap
+            cluster:
+              enabled: true
+          VALUES
+
+      - name: Lint and render
+        run: |
+          set -euo pipefail
+          for values in "$RUNNER_TEMP"/values/*.yaml; do
+            echo "::group::$(basename "$values")"
+            helm lint --strict . -f "$values"
+            helm template seafile . -f "$values" >"$RUNNER_TEMP/rendered.yaml"
+            grep '^kind:' "$RUNNER_TEMP/rendered.yaml" | sort | uniq -c
+            echo "::endgroup::"
+          done
