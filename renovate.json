@@ -1,6 +1,15 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:recommended"
+  "description": "Dependency update pull requests for seafile-helm, on the shared preset of ioanalytica/renovate-config (schedule, minimum release age, DCO, review requests, the label decision): the images values.yaml pins, GitHub Actions and the Helm the workflow chart.yaml installs.",
+  "extends": ["github>ioanalytica/renovate-config#v1.0.2"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Tool versions of the workflows, an env *_VERSION under a '# renovate: datasource=... depName=...' line.",
+      "managerFilePatterns": ["/^\\.github/workflows/[^/]+\\.ya?ml$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\n *\\w+_VERSION: (?<currentValue>\\S+)"
+      ]
+    }
   ]
 }
