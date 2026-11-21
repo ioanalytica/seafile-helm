@@ -11,5 +11,22 @@
         "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\n *\\w+_VERSION: (?<currentValue>\\S+)"
       ]
     }
+  ],
+  "packageRules": [
+    {
+      "description": "The notification server and the metadata server follow the Seafile series of appVersion (13): their 14 belongs to Seafile 14. Raise this with appVersion; check-upstream.yaml reports a new stable series.",
+      "matchDepNames": ["seafileltd/notification-server", "seafileltd/seafile-md-server"],
+      "allowedVersions": "<14"
+    },
+    {
+      "description": "SeaDoc 2 is the one the compose files of Seafile 13.0 run (sdoc-server:2.0-latest); 3.x is a parallel line with no documented Seafile 13 support.",
+      "matchDepNames": ["seafileltd/sdoc-server"],
+      "allowedVersions": "<3"
+    },
+    {
+      "description": "Seafile Pro 10.0 and later supports Elasticsearch 8.x only (https://manual.seafile.com/14.0/setup/use_elasticsearch/), as max-major=8 in check-internal-images.yaml says.",
+      "matchDepNames": ["elasticsearch"],
+      "allowedVersions": "<9"
+    }
   ]
 }
