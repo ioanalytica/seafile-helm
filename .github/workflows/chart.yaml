@@ -3,10 +3,12 @@ name: Chart
 # Lints the chart and renders it on every pull request: with the values of
 # both examples, and with every optional part switched on (Pro edition,
 # internal database and cache, notification server, SeaDoc, metadata
-# server, Elasticsearch, AI, LDAP, ingress, cluster mode). A template that
-# no longer renders, or a value an example sets that the chart refuses,
-# fails here instead of in a deployment. No paths filter: the job is a
-# required check, and a filtered workflow would leave it pending.
+# server, Elasticsearch, AI, LDAP, ingress, cluster mode), at the first
+# deployment and after it, in cluster mode and as a single instance. A
+# template that no longer renders, or a value an example sets that the
+# chart refuses, fails here instead of in a deployment. No paths filter:
+# the job is a required check, and a filtered workflow would leave it
+# pending.
 on:
   pull_request:
   push:
@@ -74,6 +76,12 @@ jobs:
             cluster:
               enabled: true
           VALUES
+          # After the first deployment, initMode is off: the single instance
+          # runs its configure container, cluster mode its configure Job.
+          yq '.seafile.initMode = false' "$RUNNER_TEMP/values/everything.yaml" \
+            >"$RUNNER_TEMP/values/everything-after-init.yaml"
+          yq '.seafile.initMode = false | .seafile.cluster.enabled = false' "$RUNNER_TEMP/values/everything.yaml" \
+            >"$RUNNER_TEMP/values/single-instance-after-init.yaml"
 
       - name: Lint and render
         run: |
