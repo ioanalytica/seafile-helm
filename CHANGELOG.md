@@ -1,5 +1,14 @@
 # Changelog
 
+## 13.0.30-2
+
+* Bump internal `elasticsearch` image to `8.19.26` (was `8.19.25`). Upstream
+  marks it as a security release and fixes bugs, among them a hang on
+  truncated compressed input; the bundled JDK moves to 27.0.1.1. Upgrading
+  is recommended. No index or configuration changes. Only installations
+  with `seafile.elasticsearch.mode: internal` are affected: their
+  Elasticsearch pod restarts once.
+
 ## 13.0.30-1
 
 * **Upgrade to Seafile 13.0.30.** `appVersion` bumped to `13.0.30`, which
